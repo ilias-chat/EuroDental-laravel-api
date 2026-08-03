@@ -1,0 +1,1109 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "EuroDental CRM and Webshop API",
+        "description": "API documentation for the separated EuroDental CRM and webshop backend.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://127.0.0.1:8001",
+            "description": "Local API server"
+        }
+    ],
+    "paths": {
+        "/api/v1/auth/login": {
+            "post": {
+                "tags": [
+                    "CRM Auth"
+                ],
+                "summary": "Log in as a CRM user",
+                "operationId": "66fc17a911540b21423d1f0318393e0f",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "admin@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/forgot-password": {
+            "post": {
+                "tags": [
+                    "CRM Auth"
+                ],
+                "summary": "Request a CRM password reset link",
+                "operationId": "1c3a7cc4d82a8b5886f07db914dae877",
+                "responses": {
+                    "200": {
+                        "description": "Reset email response"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/reset-password": {
+            "post": {
+                "tags": [
+                    "CRM Auth"
+                ],
+                "summary": "Reset a CRM user password",
+                "operationId": "4bf9b04d5497bd450bba36f5f58f61db",
+                "responses": {
+                    "200": {
+                        "description": "Password reset response"
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/me": {
+            "get": {
+                "tags": [
+                    "CRM Auth"
+                ],
+                "summary": "Get authenticated CRM user",
+                "operationId": "10e38d6e2683af3e72554f3f7c8fb75b",
+                "responses": {
+                    "200": {
+                        "description": "Authenticated user"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Unauthenticated"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/auth/logout": {
+            "post": {
+                "tags": [
+                    "CRM Auth"
+                ],
+                "summary": "Log out the authenticated CRM user",
+                "operationId": "b84740dd00736812ca23fcfcdfd350f6",
+                "responses": {
+                    "200": {
+                        "description": "Logout response"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Unauthenticated"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/shop/auth/login": {
+            "post": {
+                "tags": [
+                    "Webshop Auth"
+                ],
+                "summary": "Log in as a webshop client",
+                "operationId": "7c9dd48af124a2c72f059bfc7de636cb",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "client@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/shop/auth/register": {
+            "post": {
+                "tags": [
+                    "Webshop Auth"
+                ],
+                "summary": "Register a webshop client",
+                "operationId": "9f1f776db2ca1df61b4a7447efba3517",
+                "responses": {
+                    "201": {
+                        "description": "Client registered"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/shop/auth/me": {
+            "get": {
+                "tags": [
+                    "Webshop Auth"
+                ],
+                "summary": "Get authenticated webshop client",
+                "operationId": "c28bf1fad9622fd67e2260af74a9cfcd",
+                "responses": {
+                    "200": {
+                        "description": "Authenticated client"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Unauthenticated"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/shop/auth/logout": {
+            "post": {
+                "tags": [
+                    "Webshop Auth"
+                ],
+                "summary": "Log out the authenticated webshop client",
+                "operationId": "c874ffb58d4e49b863b3ed0ba98c2325",
+                "responses": {
+                    "200": {
+                        "description": "Logout response"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Unauthenticated"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/shop/products": {
+            "get": {
+                "tags": [
+                    "Webshop Products"
+                ],
+                "summary": "List webshop products",
+                "operationId": "72707b5583b05c6c7b438e5c0bb9f3f4",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Product list"
+                    }
+                }
+            }
+        },
+        "/api/v1/shop/products/search": {
+            "get": {
+                "tags": [
+                    "Webshop Products"
+                ],
+                "summary": "Search webshop products",
+                "operationId": "18dd5c403ffb25c1e040699949198d04",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Search results"
+                    }
+                }
+            }
+        },
+        "/api/v1/clients": {
+            "get": {
+                "tags": [
+                    "CRM Clients"
+                ],
+                "summary": "List CRM clients",
+                "operationId": "16812c376277bb18e297a3a05195eba3",
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Client list"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Unauthenticated"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/clients/{clientId}": {
+            "get": {
+                "tags": [
+                    "CRM Clients"
+                ],
+                "summary": "Show a CRM client",
+                "operationId": "3d5e17c1d02196af7b060f4670919818",
+                "parameters": [
+                    {
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Client detail"
+                    },
+                    "404": {
+                        "description": "Client not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/clients/{clientId}/tasks": {
+            "get": {
+                "tags": [
+                    "CRM Clients"
+                ],
+                "summary": "List tasks for a CRM client",
+                "operationId": "79e1b538369d87832e7c110fa965fb70",
+                "parameters": [
+                    {
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Client task list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/clients/{clientId}/orders": {
+            "get": {
+                "tags": [
+                    "CRM Clients"
+                ],
+                "summary": "List orders for a CRM client",
+                "operationId": "0cd4afd02169d66fae2ec610f044d196",
+                "parameters": [
+                    {
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Client order list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/clients/{clientId}/warranty-products": {
+            "get": {
+                "tags": [
+                    "CRM Clients"
+                ],
+                "summary": "List warranty products for a CRM client",
+                "operationId": "fd610fe68238f496a6c715da78bf4b42",
+                "parameters": [
+                    {
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Warranty product list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tasks": {
+            "get": {
+                "tags": [
+                    "CRM Tasks"
+                ],
+                "summary": "List CRM tasks",
+                "operationId": "c06c687f39e6f89a294c16cad1bb0081",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Task list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tasks/{id}": {
+            "get": {
+                "tags": [
+                    "CRM Tasks"
+                ],
+                "summary": "Show a CRM task",
+                "operationId": "5828ceb857e286c237f8a4e801a7ee07",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Task detail"
+                    },
+                    "404": {
+                        "description": "Task not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tasks/calendar/month": {
+            "get": {
+                "tags": [
+                    "CRM Tasks"
+                ],
+                "summary": "Get monthly task calendar data",
+                "operationId": "15b58b0b2307c018f08adfbba47fb215",
+                "parameters": [
+                    {
+                        "name": "year",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "month",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 12,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Monthly calendar data"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tasks/delivered-payments": {
+            "get": {
+                "tags": [
+                    "CRM Tasks"
+                ],
+                "summary": "Get delivered payment task data",
+                "operationId": "e63f437b3961f44175b24b17aa3bd3d4",
+                "responses": {
+                    "200": {
+                        "description": "Delivered payment data"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tasks/types": {
+            "get": {
+                "tags": [
+                    "CRM Tasks"
+                ],
+                "summary": "List task types",
+                "operationId": "84ce17ae6065148145270e05df89e1da",
+                "responses": {
+                    "200": {
+                        "description": "Task type list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/services": {
+            "get": {
+                "tags": [
+                    "CRM Tasks"
+                ],
+                "summary": "List CRM services",
+                "operationId": "d77d3771207f900a8ab4997249f5e201",
+                "responses": {
+                    "200": {
+                        "description": "Service list"
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Unauthenticated"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/month": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Get monthly suivi task data",
+                "operationId": "72b56c8bed84f105168c96b7361373b1",
+                "responses": {
+                    "200": {
+                        "description": "Monthly tracking data"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/stats": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Get suivi statistics",
+                "operationId": "d9ce05982f55b463d95a622ad3af9e01",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "year",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tracking statistics"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/profile": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Get suivi profile data",
+                "operationId": "631328a16c135f4c3ca61b268747b51e",
+                "responses": {
+                    "200": {
+                        "description": "Tracking profile"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/deployments": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "List suivi deployments",
+                "operationId": "61edc13a05b91c67d9536409fcae2528",
+                "responses": {
+                    "200": {
+                        "description": "Deployment list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/deployments/{id}": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Show suivi deployment details",
+                "operationId": "f69a8b138fb32ce5d72a4c81a09beb4a",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deployment details"
+                    },
+                    "404": {
+                        "description": "Deployment not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/orders": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "List suivi orders",
+                "operationId": "3b79b334b0dd18b3b688193003e70e25",
+                "responses": {
+                    "200": {
+                        "description": "Order list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/orders/{id}": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Show suivi order details",
+                "operationId": "9a15dc0da24fa9a27dec9e3351bf5938",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order details"
+                    },
+                    "404": {
+                        "description": "Order not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/rankings": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Get suivi rankings",
+                "operationId": "79f9f297acbeb7b8fe9ad7f851cff233",
+                "responses": {
+                    "200": {
+                        "description": "Rankings"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/tracking/tasks-by-type": {
+            "get": {
+                "tags": [
+                    "CRM Tracking"
+                ],
+                "summary": "Get tracking task counts by type",
+                "operationId": "e313c13bd66411192d240cd464b4a657",
+                "responses": {
+                    "200": {
+                        "description": "Task counts by type"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications": {
+            "get": {
+                "tags": [
+                    "CRM Notifications"
+                ],
+                "summary": "List notifications",
+                "operationId": "712c06d60f922f4a629682eb9f5dcad5",
+                "responses": {
+                    "200": {
+                        "description": "Notification list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications/unread-count": {
+            "get": {
+                "tags": [
+                    "CRM Notifications"
+                ],
+                "summary": "Get unread notification count",
+                "operationId": "d8ba711d8996a5b1fde80db65298b9f2",
+                "responses": {
+                    "200": {
+                        "description": "Unread count"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications/{id}": {
+            "get": {
+                "tags": [
+                    "CRM Notifications"
+                ],
+                "summary": "Show a notification",
+                "operationId": "37032ff8d7212b03a2d4ae49e678d34b",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification detail"
+                    },
+                    "404": {
+                        "description": "Notification not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "CRM Notifications"
+                ],
+                "summary": "Delete a notification",
+                "operationId": "2c432266ef192cfac8f0652768ba4c93",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification deleted"
+                    },
+                    "404": {
+                        "description": "Notification not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications/{id}/read": {
+            "put": {
+                "tags": [
+                    "CRM Notifications"
+                ],
+                "summary": "Mark a notification as read",
+                "operationId": "44c5102a8eae918333ef46576b3c9bfc",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/notifications/mark-all-read": {
+            "put": {
+                "tags": [
+                    "CRM Notifications"
+                ],
+                "summary": "Mark all notifications as read",
+                "operationId": "3a2ef612f76e5c67ba40c0f432a2ec60",
+                "responses": {
+                    "200": {
+                        "description": "Notifications updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Unauthenticated": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Unauthenticated."
+                    }
+                },
+                "type": "object"
+            },
+            "ValidationError": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "The given data was invalid."
+                    },
+                    "errors": {
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "MessageResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Success."
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "sanctum": {
+                "type": "http",
+                "description": "Paste the Sanctum token returned from login. Swagger UI will send it as: Bearer {token}.",
+                "bearerFormat": "Sanctum",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "CRM Auth",
+            "description": "CRM user authentication"
+        },
+        {
+            "name": "CRM Clients",
+            "description": "CRM client records and related data"
+        },
+        {
+            "name": "CRM Tasks",
+            "description": "CRM tasks, calendar data, task types, and services"
+        },
+        {
+            "name": "CRM Tracking",
+            "description": "Suivi and tracking statistics"
+        },
+        {
+            "name": "CRM Notifications",
+            "description": "Authenticated CRM notifications"
+        },
+        {
+            "name": "Webshop Auth",
+            "description": "Webshop client authentication"
+        },
+        {
+            "name": "Webshop Products",
+            "description": "Public webshop product catalog"
+        }
+    ]
+}

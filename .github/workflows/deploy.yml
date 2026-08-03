@@ -1,0 +1,153 @@
+name: Deploy EuroDental API
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-eurodental-api-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: dom, xml, mbstring, ctype, fileinfo, openssl, pdo_mysql, tokenizer, bcmath, curl, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Build production .env
+        env:
+          APP_KEY: ${{ secrets.APP_KEY }}
+          APP_URL: ${{ secrets.APP_URL }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          SANCTUM_STATEFUL_DOMAINS: ${{ secrets.SANCTUM_STATEFUL_DOMAINS }}
+          MEDIA_SERVICE_URL: ${{ secrets.MEDIA_SERVICE_URL }}
+          MEDIA_PUBLIC_URL: ${{ secrets.MEDIA_PUBLIC_URL }}
+          MEDIA_SERVICE_TOKEN: ${{ secrets.MEDIA_SERVICE_TOKEN }}
+        run: php scripts/build-deploy-env.php
+
+      - name: Composer install
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
+
+      - name: Remove local Laravel caches before rsync
+        run: |
+          rm -f bootstrap/cache/config.php bootstrap/cache/routes*.php bootstrap/cache/events.php
+          rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
+          php artisan package:discover --ansi
+
+      - name: Normalize shell scripts (LF)
+        run: sed -i 's/\r$//' scripts/remote-optimize.sh
+
+      - name: Setup SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::Missing GitHub secret SSH_PRIVATE_KEY."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          {
+            echo "SSH_KEY_FILE=$HOME/.ssh/deploy_key"
+            echo "SSH_COMMON_OPTS=-o StrictHostKeyChecking=accept-new -o ConnectTimeout=60 -o ServerAliveInterval=15 -o ServerAliveCountMax=10"
+          } >> "$GITHUB_ENV"
+
+      - name: Test SSH connection
+        run: |
+          TARGET="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          echo "SSH test -> ${TARGET} port ${{ secrets.SSH_PORT }}"
+          ssh -i "$SSH_KEY_FILE" $SSH_COMMON_OPTS -p "${{ secrets.SSH_PORT }}" "$TARGET" \
+            "echo SSH_OK && uptime && df -h . | head -2"
+
+      - name: Rsync application to server
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          TARGET="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          REMOTE="${TARGET}:${DEPLOY_PATH}/"
+          RSYNC_SSH="ssh -i $SSH_KEY_FILE $SSH_COMMON_OPTS -p ${{ secrets.SSH_PORT }}"
+
+          ssh -i "$SSH_KEY_FILE" $SSH_COMMON_OPTS -p "${{ secrets.SSH_PORT }}" "$TARGET" \
+            "mkdir -p $(printf '%q' "$DEPLOY_PATH")"
+
+          for attempt in 1 2 3; do
+            echo "Rsync attempt ${attempt}/3 -> ${REMOTE}"
+            if rsync -avz --delete --info=stats2 \
+              --exclude-from=.rsync-exclude \
+              -e "$RSYNC_SSH" \
+              ./ "$REMOTE"; then
+              echo "Rsync finished successfully."
+              exit 0
+            fi
+            echo "Rsync failed. Retrying in 20s..."
+            sleep 20
+          done
+          exit 1
+
+      - name: Finalize deploy on server
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          PHP_BIN: ${{ secrets.PHP_BIN }}
+          PUBLIC_HTML_PATH: ${{ secrets.PUBLIC_HTML_PATH }}
+        run: |
+          TARGET="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          REMOTE_CMD="export DEPLOY_PATH=$(printf '%q' "$DEPLOY_PATH"); export PHP_BIN=$(printf '%q' "${PHP_BIN:-}"); export PUBLIC_HTML_PATH=$(printf '%q' "${PUBLIC_HTML_PATH:-}"); sh $(printf '%q' "$DEPLOY_PATH/scripts/remote-optimize.sh")"
+          OK=0
+          for attempt in 1 2 3; do
+            echo "Finalize attempt ${attempt}/3..."
+            if ssh -i "$SSH_KEY_FILE" $SSH_COMMON_OPTS -p "${{ secrets.SSH_PORT }}" "$TARGET" "$REMOTE_CMD"; then
+              OK=1
+              break
+            fi
+            sleep 10
+          done
+          echo "========== SERVER DEPLOY DEBUG LOG =========="
+          scp -i "$SSH_KEY_FILE" $SSH_COMMON_OPTS -P "${{ secrets.SSH_PORT }}" \
+            "${TARGET}:${DEPLOY_PATH}/deploy-debug.txt" ./deploy-debug.txt 2>/dev/null || true
+          if [ -f deploy-debug.txt ]; then cat deploy-debug.txt; else echo "(no deploy-debug.txt)"; fi
+          echo "========== LARAVEL LOG (tail) =========="
+          ssh -i "$SSH_KEY_FILE" $SSH_COMMON_OPTS -p "${{ secrets.SSH_PORT }}" "$TARGET" \
+            "tail -n 80 $(printf '%q' "$DEPLOY_PATH/storage/logs/laravel.log") 2>/dev/null || echo '(no laravel.log yet)'" || true
+          echo "=============================================="
+          if [ "$OK" = "1" ]; then exit 0; fi
+          exit 1
+
+      - name: Verify health endpoint
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        continue-on-error: true
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/up-body.txt -w "%{http_code}" --max-time 25 "$HEALTHCHECK_URL" || echo "000")
+            echo "HTTP $code"
+            head -c 400 /tmp/up-body.txt 2>/dev/null || true
+            echo ""
+            if [ "$code" = "200" ]; then
+              echo "Health check OK"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check failed - see Finalize step logs"
+          exit 1
