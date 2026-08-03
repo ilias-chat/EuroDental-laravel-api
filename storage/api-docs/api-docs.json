@@ -7,8 +7,8 @@
     },
     "servers": [
         {
-            "url": "http://127.0.0.1:8001",
-            "description": "Local API server"
+            "url": "https://api.eurodental.ma",
+            "description": "EuroDental API server"
         }
     ],
     "paths": {

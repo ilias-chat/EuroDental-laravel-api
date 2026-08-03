@@ -10,8 +10,8 @@ use OpenApi\Attributes as OA;
     description: 'API documentation for the separated EuroDental CRM and webshop backend.'
 )]
 #[OA\Server(
-    url: 'http://127.0.0.1:8001',
-    description: 'Local API server'
+    url: L5_SWAGGER_CONST_HOST,
+    description: 'EuroDental API server'
 )]
 #[OA\SecurityScheme(
     securityScheme: 'sanctum',

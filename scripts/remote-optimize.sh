@@ -101,5 +101,6 @@ log "PHP_BIN=$PHP_BIN"
 "$PHP_BIN" artisan config:clear 2>&1 | tee -a "$DEBUG_LOG" || true
 "$PHP_BIN" artisan route:cache 2>&1 | tee -a "$DEBUG_LOG" || true
 "$PHP_BIN" artisan config:cache 2>&1 | tee -a "$DEBUG_LOG" || true
+"$PHP_BIN" artisan l5-swagger:generate 2>&1 | tee -a "$DEBUG_LOG" || true
 "$PHP_BIN" artisan db:show 2>&1 | tee -a "$DEBUG_LOG" || true
 log "Deploy finished OK"
