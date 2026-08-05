@@ -28,6 +28,7 @@ class User extends Authenticatable
         'image_id',
         'phone_number',
         'address',
+        'is_blocked',
         'is_on_deployment',
     ];
 

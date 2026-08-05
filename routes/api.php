@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Crm\ServiceController;
 use App\Http\Controllers\Api\V1\Crm\TaskCalendarController;
 use App\Http\Controllers\Api\V1\Crm\TaskController;
 use App\Http\Controllers\Api\V1\Crm\TrackingController;
+use App\Http\Controllers\Api\V1\Crm\UserController;
 use App\Http\Controllers\Api\V1\Crm\TaskTypeController;
 use App\Http\Controllers\Api\V1\Webshop\ClientAuthController;
 use App\Http\Controllers\Api\V1\Webshop\ProductController;
@@ -44,6 +45,18 @@ Route::prefix('v1')->group(function () {
         Route::get('clients/{clientId}/tasks', [ClientController::class, 'tasks'])->whereNumber('clientId');
         Route::get('clients/{clientId}/orders', [ClientController::class, 'orders'])->whereNumber('clientId');
         Route::get('clients/{clientId}/warranty-products', [ClientController::class, 'products'])->whereNumber('clientId');
+    });
+
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':users_read'])->group(function () {
+        Route::get('users', [UserController::class, 'index']);
+        Route::get('users/meta', [UserController::class, 'meta']);
+    });
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':users_write'])->group(function () {
+        Route::post('users', [UserController::class, 'store']);
+        Route::put('users/{user}', [UserController::class, 'update']);
+        Route::delete('users/{user}', [UserController::class, 'destroy']);
+        Route::patch('users/{user}/blocked', [UserController::class, 'setBlocked']);
+        Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword']);
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':tasks_read'])->group(function () {
