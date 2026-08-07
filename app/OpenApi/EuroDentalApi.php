@@ -25,6 +25,7 @@ use OpenApi\Attributes as OA;
 #[OA\Tag(name: 'CRM Tasks', description: 'CRM tasks, calendar data, task types, and services')]
 #[OA\Tag(name: 'CRM Tracking', description: 'Suivi and tracking statistics')]
 #[OA\Tag(name: 'CRM Notifications', description: 'Authenticated CRM notifications')]
+#[OA\Tag(name: 'CRM Profiles', description: 'CRM profiles, ordering, and permission assignment')]
 #[OA\Tag(name: 'Webshop Auth', description: 'Webshop client authentication')]
 #[OA\Tag(name: 'Webshop Products', description: 'Public webshop product catalog')]
 #[OA\Schema(
@@ -269,6 +270,41 @@ final class EuroDentalApi
 
     #[OA\Delete(path: '/api/v1/notifications/{id}', summary: 'Delete a notification', security: [['sanctum' => []]], tags: ['CRM Notifications'], parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Notification deleted'), new OA\Response(response: 404, description: 'Notification not found')])]
     public function notificationDelete(): void
+    {
+    }
+
+    #[OA\Get(path: '/api/v1/profiles', summary: 'List profiles and available permissions', security: [['sanctum' => []]], tags: ['CRM Profiles'], responses: [new OA\Response(response: 200, description: 'Profiles and permissions'), new OA\Response(response: 403, description: 'Missing users_read permission')])]
+    public function profiles(): void
+    {
+    }
+
+    #[OA\Post(path: '/api/v1/profiles', summary: 'Create a profile', security: [['sanctum' => []]], tags: ['CRM Profiles'], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['profile_name'], properties: [new OA\Property(property: 'profile_name', type: 'string', maxLength: 255)])), responses: [new OA\Response(response: 201, description: 'Profile created'), new OA\Response(response: 422, description: 'Validation failed')])]
+    public function profileCreate(): void
+    {
+    }
+
+    #[OA\Put(path: '/api/v1/profiles/{profile}', summary: 'Rename a profile', security: [['sanctum' => []]], tags: ['CRM Profiles'], parameters: [new OA\Parameter(name: 'profile', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Profile updated'), new OA\Response(response: 403, description: 'Protected profile')])]
+    public function profileUpdate(): void
+    {
+    }
+
+    #[OA\Delete(path: '/api/v1/profiles/{profile}', summary: 'Delete an unused profile', security: [['sanctum' => []]], tags: ['CRM Profiles'], parameters: [new OA\Parameter(name: 'profile', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Profile deleted'), new OA\Response(response: 403, description: 'Protected profile or assigned users')])]
+    public function profileDelete(): void
+    {
+    }
+
+    #[OA\Get(path: '/api/v1/profiles/{profile}/permissions', summary: 'Get assigned permission IDs', security: [['sanctum' => []]], tags: ['CRM Profiles'], parameters: [new OA\Parameter(name: 'profile', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Assigned permission IDs')])]
+    public function profilePermissions(): void
+    {
+    }
+
+    #[OA\Put(path: '/api/v1/profiles/{profile}/permissions', summary: 'Replace assigned permissions', security: [['sanctum' => []]], tags: ['CRM Profiles'], parameters: [new OA\Parameter(name: 'profile', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['permissions'], properties: [new OA\Property(property: 'permissions', type: 'array', items: new OA\Items(type: 'integer'))])), responses: [new OA\Response(response: 200, description: 'Permissions synchronized'), new OA\Response(response: 422, description: 'Validation failed')])]
+    public function profilePermissionsUpdate(): void
+    {
+    }
+
+    #[OA\Post(path: '/api/v1/profiles/reorder', summary: 'Move a profile up or down', security: [['sanctum' => []]], tags: ['CRM Profiles'], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['profile_id', 'direction'], properties: [new OA\Property(property: 'profile_id', type: 'integer'), new OA\Property(property: 'direction', type: 'string', enum: ['up', 'down'])])), responses: [new OA\Response(response: 200, description: 'Profiles reordered'), new OA\Response(response: 422, description: 'Invalid move')])]
+    public function profileReorder(): void
     {
     }
 }

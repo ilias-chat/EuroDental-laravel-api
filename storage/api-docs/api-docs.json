@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "https://api.eurodental.ma",
+            "url": "http://127.0.0.1:8001",
             "description": "EuroDental API server"
         }
     ],
@@ -1032,6 +1032,257 @@
                     }
                 ]
             }
+        },
+        "/api/v1/profiles": {
+            "get": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "List profiles and available permissions",
+                "operationId": "5b39727b9e53bd9e8aecf6287bb741ee",
+                "responses": {
+                    "200": {
+                        "description": "Profiles and permissions"
+                    },
+                    "403": {
+                        "description": "Missing users_read permission"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "Create a profile",
+                "operationId": "ed8572a0625e95a14113fc3f98e18cac",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "profile_name"
+                                ],
+                                "properties": {
+                                    "profile_name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Profile created"
+                    },
+                    "422": {
+                        "description": "Validation failed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/profiles/{profile}": {
+            "put": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "Rename a profile",
+                "operationId": "8ac20bd2621eff146ed016de754b7aed",
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profile updated"
+                    },
+                    "403": {
+                        "description": "Protected profile"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "Delete an unused profile",
+                "operationId": "8c1cb9b1bed65cfd9531b7fc39e426d3",
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profile deleted"
+                    },
+                    "403": {
+                        "description": "Protected profile or assigned users"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/profiles/{profile}/permissions": {
+            "get": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "Get assigned permission IDs",
+                "operationId": "8c89c9eb1b4873dbd3381853d083c40f",
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Assigned permission IDs"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "Replace assigned permissions",
+                "operationId": "ce1dc50f74ec789234541d0c82a2219c",
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "permissions"
+                                ],
+                                "properties": {
+                                    "permissions": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Permissions synchronized"
+                    },
+                    "422": {
+                        "description": "Validation failed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/profiles/reorder": {
+            "post": {
+                "tags": [
+                    "CRM Profiles"
+                ],
+                "summary": "Move a profile up or down",
+                "operationId": "e6ff8446a201dcac078801849ce6411d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "profile_id",
+                                    "direction"
+                                ],
+                                "properties": {
+                                    "profile_id": {
+                                        "type": "integer"
+                                    },
+                                    "direction": {
+                                        "type": "string",
+                                        "enum": [
+                                            "up",
+                                            "down"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Profiles reordered"
+                    },
+                    "422": {
+                        "description": "Invalid move"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -1096,6 +1347,10 @@
         {
             "name": "CRM Notifications",
             "description": "Authenticated CRM notifications"
+        },
+        {
+            "name": "CRM Profiles",
+            "description": "CRM profiles, ordering, and permission assignment"
         },
         {
             "name": "Webshop Auth",

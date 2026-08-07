@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Crm\AuthController;
 use App\Http\Controllers\Api\V1\Crm\ClientController;
 use App\Http\Controllers\Api\V1\Crm\NotificationController;
+use App\Http\Controllers\Api\V1\Crm\ProfileController;
 use App\Http\Controllers\Api\V1\Crm\ServiceController;
 use App\Http\Controllers\Api\V1\Crm\TaskCalendarController;
 use App\Http\Controllers\Api\V1\Crm\TaskController;
@@ -50,6 +51,8 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', CheckPermission::class . ':users_read'])->group(function () {
         Route::get('users', [UserController::class, 'index']);
         Route::get('users/meta', [UserController::class, 'meta']);
+        Route::get('profiles', [ProfileController::class, 'index']);
+        Route::get('profiles/{profile}/permissions', [ProfileController::class, 'permissions']);
     });
     Route::middleware(['auth:sanctum', CheckPermission::class . ':users_write'])->group(function () {
         Route::post('users', [UserController::class, 'store']);
@@ -57,6 +60,11 @@ Route::prefix('v1')->group(function () {
         Route::delete('users/{user}', [UserController::class, 'destroy']);
         Route::patch('users/{user}/blocked', [UserController::class, 'setBlocked']);
         Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword']);
+        Route::post('profiles', [ProfileController::class, 'store']);
+        Route::put('profiles/{profile}', [ProfileController::class, 'update']);
+        Route::delete('profiles/{profile}', [ProfileController::class, 'destroy']);
+        Route::put('profiles/{profile}/permissions', [ProfileController::class, 'syncPermissions']);
+        Route::post('profiles/reorder', [ProfileController::class, 'reorder']);
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':tasks_read'])->group(function () {
