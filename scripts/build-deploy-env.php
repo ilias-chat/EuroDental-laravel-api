@@ -15,6 +15,7 @@ function envLine(string $key, string $value): string
 $required = [
     'APP_KEY', 'APP_URL', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD',
     'MEDIA_SERVICE_URL', 'MEDIA_PUBLIC_URL', 'MEDIA_SERVICE_TOKEN',
+    'MAIL_MAILER', 'MAIL_HOST', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME',
 ];
 
 foreach ($required as $name) {
@@ -77,9 +78,15 @@ $lines = [
     envLine('SANCTUM_STATEFUL_DOMAINS', getenv('SANCTUM_STATEFUL_DOMAINS') ?: ''),
     envLine('CORS_ALLOWED_ORIGINS', getenv('CORS_ALLOWED_ORIGINS') ?: ''),
     '',
-    'MAIL_MAILER=log',
-    'MAIL_FROM_ADDRESS="no-reply@eurodental.ma"',
-    'MAIL_FROM_NAME="EuroDental"',
+    envLine('MAIL_MAILER', getenv('MAIL_MAILER')),
+    envLine('MAIL_SCHEME', getenv('MAIL_SCHEME') ?: 'null'),
+    envLine('MAIL_HOST', getenv('MAIL_HOST')),
+    envLine('MAIL_PORT', getenv('MAIL_PORT')),
+    envLine('MAIL_USERNAME', getenv('MAIL_USERNAME')),
+    envLine('MAIL_PASSWORD', getenv('MAIL_PASSWORD')),
+    envLine('MAIL_ENCRYPTION', getenv('MAIL_ENCRYPTION') ?: 'null'),
+    envLine('MAIL_FROM_ADDRESS', getenv('MAIL_FROM_ADDRESS')),
+    envLine('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME')),
     '',
 ];
 

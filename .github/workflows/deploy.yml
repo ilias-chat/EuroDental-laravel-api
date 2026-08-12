@@ -41,6 +41,14 @@ jobs:
           MEDIA_SERVICE_URL: ${{ secrets.MEDIA_SERVICE_URL }}
           MEDIA_PUBLIC_URL: ${{ secrets.MEDIA_PUBLIC_URL }}
           MEDIA_SERVICE_TOKEN: ${{ secrets.MEDIA_SERVICE_TOKEN }}
+          MAIL_MAILER: ${{ secrets.MAIL_MAILER }}
+          MAIL_SCHEME: ${{ secrets.MAIL_SCHEME }}
+          MAIL_HOST: ${{ secrets.MAIL_HOST }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS }}
+          MAIL_FROM_NAME: ${{ secrets.MAIL_FROM_NAME }}
         run: php scripts/build-deploy-env.php
 
       - name: Composer install
