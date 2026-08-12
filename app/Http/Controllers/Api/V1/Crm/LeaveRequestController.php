@@ -12,7 +12,9 @@ use App\Services\Media\MediaUrl;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class LeaveRequestController extends Controller
 {
@@ -108,7 +110,7 @@ class LeaveRequestController extends Controller
             'reviewed_at' => now(),
         ]);
 
-        $this->notifyVacationResponse($leaveRequest->fresh(['user', 'reviewer']), true);
+        $this->notifyVacationResponseSafely($leaveRequest->fresh(['user', 'reviewer']), true);
 
         return response()->json(['success' => true, 'message' => 'Demande de conge acceptee.']);
     }
@@ -129,7 +131,7 @@ class LeaveRequestController extends Controller
             'rejection_reason' => $data['reason'] ?? null,
         ]);
 
-        $this->notifyVacationResponse($leaveRequest->fresh(['user', 'reviewer']), false);
+        $this->notifyVacationResponseSafely($leaveRequest->fresh(['user', 'reviewer']), false);
 
         return response()->json(['success' => true, 'message' => 'Demande de conge refusee.']);
     }
@@ -207,6 +209,19 @@ class LeaveRequestController extends Controller
             Mail::to($user->email)->send(
                 $approved ? new LeaveRequestApprovedMail($leaveRequest) : new LeaveRequestDeniedMail($leaveRequest)
             );
+        }
+    }
+
+    private function notifyVacationResponseSafely(LeaveRequest $leaveRequest, bool $approved): void
+    {
+        try {
+            $this->notifyVacationResponse($leaveRequest, $approved);
+        } catch (Throwable $exception) {
+            Log::warning('Failed to send leave request response notification.', [
+                'leave_request_id' => $leaveRequest->id,
+                'approved' => $approved,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 }

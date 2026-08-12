@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
+use Throwable;
 
 class CrmNotificationService
 {
@@ -21,7 +22,7 @@ class CrmNotificationService
             'is_sent' => false,
         ]);
 
-        if ($this->sendPush($user, $notification)) {
+        if ($this->sendPushSafely($user, $notification)) {
             $notification->update(['is_sent' => true]);
         }
 
@@ -86,6 +87,21 @@ class CrmNotificationService
         }
 
         return $sent;
+    }
+
+    private function sendPushSafely(User $user, Notification $notification): bool
+    {
+        try {
+            return $this->sendPush($user, $notification);
+        } catch (Throwable $exception) {
+            Log::warning('Failed to send web push notification.', [
+                'user_id' => $user->id,
+                'notification_id' => $notification->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     private function toWebPushSubscription(PushSubscription $subscription): Subscription
