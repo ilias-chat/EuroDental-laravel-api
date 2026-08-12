@@ -100,6 +100,9 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('notifications/vapid-public-key', [NotificationController::class, 'vapidPublicKey']);
+        Route::post('notifications/push-subscriptions', [NotificationController::class, 'storePushSubscription']);
+        Route::delete('notifications/push-subscriptions', [NotificationController::class, 'destroyPushSubscription']);
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::get('notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
         Route::get('notifications/{id}', [NotificationController::class, 'show'])->whereNumber('id');

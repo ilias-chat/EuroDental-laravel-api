@@ -3,15 +3,23 @@
 namespace App\Http\Controllers\Api\V1\Crm;
 
 use App\Http\Controllers\Controller;
+use App\Mail\LeaveRequestApprovedMail;
+use App\Mail\LeaveRequestDeniedMail;
 use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Services\CrmNotificationService;
 use App\Services\Media\MediaUrl;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 
 class LeaveRequestController extends Controller
 {
+    public function __construct(private readonly CrmNotificationService $notifications)
+    {
+    }
+
     public function index()
     {
         $requests = LeaveRequest::with(['user.image', 'reviewer'])
@@ -100,6 +108,8 @@ class LeaveRequestController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        $this->notifyVacationResponse($leaveRequest->fresh(['user', 'reviewer']), true);
+
         return response()->json(['success' => true, 'message' => 'Demande de conge acceptee.']);
     }
 
@@ -118,6 +128,8 @@ class LeaveRequestController extends Controller
             'reviewed_at' => now(),
             'rejection_reason' => $data['reason'] ?? null,
         ]);
+
+        $this->notifyVacationResponse($leaveRequest->fresh(['user', 'reviewer']), false);
 
         return response()->json(['success' => true, 'message' => 'Demande de conge refusee.']);
     }
@@ -168,5 +180,33 @@ class LeaveRequestController extends Controller
         }
 
         return $data;
+    }
+
+    private function notifyVacationResponse(LeaveRequest $leaveRequest, bool $approved): void
+    {
+        $user = $leaveRequest->user;
+        if (! $user) {
+            return;
+        }
+
+        $period = $leaveRequest->start_date->format('d/m/Y').' - '.$leaveRequest->end_date->format('d/m/Y');
+        $title = $approved ? 'Demande de conge acceptee' : 'Demande de conge refusee';
+        $body = $approved
+            ? "Votre demande de conge du {$period} a ete acceptee."
+            : "Votre demande de conge du {$period} a ete refusee.";
+
+        $this->notifications->notify($user, $title, $body, $approved ? 'leave_approved' : 'leave_denied', [
+            'leave_request_id' => $leaveRequest->id,
+            'status' => $leaveRequest->status,
+            'start_date' => $leaveRequest->start_date->format('Y-m-d'),
+            'end_date' => $leaveRequest->end_date->format('Y-m-d'),
+            'url' => '/utilisateurs',
+        ]);
+
+        if ($user->email) {
+            Mail::to($user->email)->send(
+                $approved ? new LeaveRequestApprovedMail($leaveRequest) : new LeaveRequestDeniedMail($leaveRequest)
+            );
+        }
     }
 }

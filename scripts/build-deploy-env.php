@@ -16,6 +16,7 @@ $required = [
     'APP_KEY', 'APP_URL', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD',
     'MEDIA_SERVICE_URL', 'MEDIA_PUBLIC_URL', 'MEDIA_SERVICE_TOKEN',
     'MAIL_MAILER', 'MAIL_HOST', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'MAIL_FROM_ADDRESS', 'MAIL_FROM_NAME',
+    'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY',
 ];
 
 foreach ($required as $name) {
@@ -87,6 +88,10 @@ $lines = [
     envLine('MAIL_ENCRYPTION', getenv('MAIL_ENCRYPTION') ?: 'null'),
     envLine('MAIL_FROM_ADDRESS', getenv('MAIL_FROM_ADDRESS')),
     envLine('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME')),
+    '',
+    envLine('VAPID_PUBLIC_KEY', getenv('VAPID_PUBLIC_KEY')),
+    envLine('VAPID_PRIVATE_KEY', getenv('VAPID_PRIVATE_KEY')),
+    envLine('VAPID_SUBJECT', getenv('VAPID_SUBJECT') ?: 'mailto:contact@eurodental.ma'),
     '',
 ];
 

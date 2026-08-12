@@ -4,11 +4,59 @@ namespace App\Http\Controllers\Api\V1\Crm;
 
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
+use App\Models\PushSubscription;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class NotificationController extends Controller
 {
+    public function vapidPublicKey(): JsonResponse
+    {
+        return response()->json([
+            'public_key' => config('services.webpush.public_key'),
+        ]);
+    }
+
+    public function storePushSubscription(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'endpoint' => 'required|string|max:2048',
+            'keys.p256dh' => 'required|string',
+            'keys.auth' => 'required|string',
+            'content_encoding' => 'nullable|string|max:50',
+        ]);
+
+        $subscription = PushSubscription::updateOrCreate(
+            ['endpoint_hash' => hash('sha256', $data['endpoint'])],
+            [
+                'user_id' => auth()->id(),
+                'endpoint' => $data['endpoint'],
+                'public_key' => $data['keys']['p256dh'],
+                'auth_token' => $data['keys']['auth'],
+                'content_encoding' => $data['content_encoding'] ?? 'aes128gcm',
+                'user_agent' => $request->userAgent(),
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'subscription_id' => $subscription->id,
+        ]);
+    }
+
+    public function destroyPushSubscription(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'endpoint' => 'required|string|max:2048',
+        ]);
+
+        auth()->user()->pushSubscriptions()
+            ->where('endpoint_hash', hash('sha256', $data['endpoint']))
+            ->delete();
+
+        return response()->json(['success' => true]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         // Get notifications for the authenticated user only
