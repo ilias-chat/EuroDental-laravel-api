@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Crm\AuthController;
 use App\Http\Controllers\Api\V1\Crm\ClientController;
+use App\Http\Controllers\Api\V1\Crm\LeaveRequestController;
 use App\Http\Controllers\Api\V1\Crm\NotificationController;
 use App\Http\Controllers\Api\V1\Crm\ProfileController;
 use App\Http\Controllers\Api\V1\Crm\ServiceController;
@@ -65,6 +66,16 @@ Route::prefix('v1')->group(function () {
         Route::delete('profiles/{profile}', [ProfileController::class, 'destroy']);
         Route::put('profiles/{profile}/permissions', [ProfileController::class, 'syncPermissions']);
         Route::post('profiles/reorder', [ProfileController::class, 'reorder']);
+    });
+
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':manage_vacations'])->group(function () {
+        Route::get('leave-requests', [LeaveRequestController::class, 'index']);
+        Route::get('leave-requests/unavailable-users', [LeaveRequestController::class, 'unavailableUsers']);
+        Route::get('leave-requests/history', [LeaveRequestController::class, 'history']);
+        Route::get('leave-requests/user-stats/{userId}', [LeaveRequestController::class, 'userStats'])->whereNumber('userId');
+        Route::get('leave-requests/{id}/details', [LeaveRequestController::class, 'details'])->whereNumber('id');
+        Route::post('leave-requests/{id}/approve', [LeaveRequestController::class, 'approve'])->whereNumber('id');
+        Route::post('leave-requests/{id}/deny', [LeaveRequestController::class, 'deny'])->whereNumber('id');
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':tasks_read'])->group(function () {
