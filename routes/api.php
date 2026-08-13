@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Route;
 
 /* CRM and webshop API only. */
 Route::prefix('v1')->group(function () {
+    Route::get('notifications/vapid-public-key', [NotificationController::class, 'vapidPublicKey']);
+
     Route::prefix('auth')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
@@ -101,7 +103,6 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware('auth:sanctum')->group(function () {
-        Route::get('notifications/vapid-public-key', [NotificationController::class, 'vapidPublicKey']);
         Route::post('notifications/push-subscriptions', [NotificationController::class, 'storePushSubscription']);
         Route::delete('notifications/push-subscriptions', [NotificationController::class, 'destroyPushSubscription']);
         Route::get('notifications', [NotificationController::class, 'index']);

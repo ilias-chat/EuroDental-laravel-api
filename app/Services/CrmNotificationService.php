@@ -34,7 +34,7 @@ class CrmNotificationService
     public function subscriptionCounts(User $user): array
     {
         return [
-            'crm' => $user->pushSubscriptions()->count(),
+            'crm' => Schema::hasTable('push_subscriptions') ? $user->pushSubscriptions()->count() : 0,
             'mobile_web' => $this->legacyWebPushSubscriptions($user)->count(),
         ];
     }
