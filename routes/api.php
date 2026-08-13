@@ -61,6 +61,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('users/{user}', [UserController::class, 'destroy']);
         Route::patch('users/{user}/blocked', [UserController::class, 'setBlocked']);
         Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword']);
+        Route::post('users/{user}/test-notification', [UserController::class, 'sendTestNotification']);
         Route::post('profiles', [ProfileController::class, 'store']);
         Route::put('profiles/{profile}', [ProfileController::class, 'update']);
         Route::delete('profiles/{profile}', [ProfileController::class, 'destroy']);

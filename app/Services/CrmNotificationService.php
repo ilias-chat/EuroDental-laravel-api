@@ -31,6 +31,14 @@ class CrmNotificationService
         return $notification->fresh();
     }
 
+    public function subscriptionCounts(User $user): array
+    {
+        return [
+            'crm' => $user->pushSubscriptions()->count(),
+            'mobile_web' => $this->legacyWebPushSubscriptions($user)->count(),
+        ];
+    }
+
     private function sendPush(User $user, Notification $notification): bool
     {
         $publicKey = config('services.webpush.public_key');
@@ -139,8 +147,10 @@ class CrmNotificationService
     {
         return Subscription::create([
             'endpoint' => $subscription->endpoint,
-            'publicKey' => $subscription->p256dh,
-            'authToken' => $subscription->auth,
+            'keys' => [
+                'p256dh' => $subscription->p256dh,
+                'auth' => $subscription->auth,
+            ],
             'contentEncoding' => $subscription->content_encoding ?: 'aes128gcm',
         ]);
     }

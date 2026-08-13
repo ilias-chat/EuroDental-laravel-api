@@ -7,6 +7,8 @@ use App\Models\City;
 use App\Models\Profile;
 use App\Models\User;
 use App\Services\Media\MediaUrl;
+use App\Services\CrmNotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -32,6 +34,7 @@ class UserController extends Controller
     public function destroy(User $user) { abort_if($user->is(auth()->user()),422,'Vous ne pouvez pas supprimer votre propre compte.'); $user->delete(); return response()->noContent(); }
     public function setBlocked(Request $request, User $user) { $user->update(['is_blocked'=>$request->boolean('blocked')]); return response()->json(['user'=>$this->map($user->fresh(['profile','city','image','leaveRequests']))]); }
     public function resetPassword(User $user) { $password=Str::random(12); $user->update(['password'=>Hash::make($password),'requires_password_change'=>true]); Mail::to($user->email)->send(new \App\Mail\PasswordResetMail($user,$password)); return response()->json(['message'=>'Un nouveau mot de passe a été envoyé.']); }
+    public function sendTestNotification(User $user, CrmNotificationService $notifications): JsonResponse { $counts=$notifications->subscriptionCounts($user); $notification=$notifications->notify($user,'Notification de test','Ceci est une notification de test envoyee depuis le CRM.','debug_test',['url'=>'/utilisateurs','debug'=>true]); return response()->json(['success'=>true,'message'=>$notification->is_sent ? 'Notification de test envoyee.' : 'Notification creee, mais aucun push confirme.','sent'=>(bool)$notification->is_sent,'notification_id'=>$notification->id,'subscription_counts'=>$counts]); }
     private function validateUser(Request $request, ?User $user=null): array { return $request->validate(['first_name'=>'required|string|max:255','last_name'=>'required|string|max:255','email'=>'required|email|unique:users,email,'.($user?->id ?? 'NULL'),'profile_id'=>'required|exists:profiles,id','city_id'=>'nullable|exists:cities,id','phone_number'=>'nullable|string|max:20','address'=>'nullable|string|max:500']); }
     private function map(User $u): array { $activeLeave=$u->relationLoaded('leaveRequests')?$u->leaveRequests->first(fn ($leave) => in_array($leave->status, ['accepted', 'on_leave'], true) && $leave->start_date <= now() && $leave->end_date >= now()):null; return ['id'=>$u->id,'first_name'=>$u->first_name,'last_name'=>$u->last_name,'email'=>$u->email,'phone_number'=>$u->phone_number,'address'=>$u->address,'profile_id'=>$u->profile_id,'profile_name'=>$u->profile?->profile_name,'city_id'=>$u->city_id,'city_name'=>$u->city?->name,'image_url'=>$u->image?MediaUrl::image($u->image->image_name):null,'is_blocked'=>(bool)$u->is_blocked,'has_active_leave'=>(bool)$activeLeave,'active_leave'=>$activeLeave?['start_date'=>$activeLeave->start_date?->format('Y-m-d'),'end_date'=>$activeLeave->end_date?->format('Y-m-d')]:null]; }
 }
