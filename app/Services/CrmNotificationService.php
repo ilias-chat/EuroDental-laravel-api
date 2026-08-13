@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Notification;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\WebPushSubscription;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 use Throwable;
@@ -39,7 +41,8 @@ class CrmNotificationService
         }
 
         $subscriptions = $user->pushSubscriptions()->get();
-        if ($subscriptions->isEmpty()) {
+        $legacySubscriptions = $this->legacyWebPushSubscriptions($user);
+        if ($subscriptions->isEmpty() && $legacySubscriptions->isEmpty()) {
             return false;
         }
 
@@ -64,10 +67,15 @@ class CrmNotificationService
             $webPush->queueNotification($this->toWebPushSubscription($subscription), $payload);
         }
 
+        foreach ($legacySubscriptions as $subscription) {
+            $webPush->queueNotification($this->toLegacyWebPushSubscription($subscription), $payload);
+        }
+
         $sent = false;
         foreach ($webPush->flush() as $report) {
             $endpoint = $report->getRequest()->getUri()->__toString();
             $subscription = $subscriptions->firstWhere('endpoint', $endpoint);
+            $legacySubscription = $legacySubscriptions->firstWhere('endpoint', $endpoint);
 
             if ($report->isSuccess()) {
                 $sent = true;
@@ -77,6 +85,7 @@ class CrmNotificationService
 
             if ($report->isSubscriptionExpired()) {
                 PushSubscription::where('endpoint_hash', hash('sha256', $endpoint))->delete();
+                $legacySubscription?->delete();
                 continue;
             }
 
@@ -111,6 +120,28 @@ class CrmNotificationService
             'publicKey' => $subscription->public_key,
             'authToken' => $subscription->auth_token,
             'contentEncoding' => $subscription->content_encoding,
+        ]);
+    }
+
+    private function legacyWebPushSubscriptions(User $user)
+    {
+        if (! Schema::hasTable('web_push_subscriptions')) {
+            return collect();
+        }
+
+        return WebPushSubscription::query()
+            ->where('user_id', $user->id)
+            ->where('is_active', true)
+            ->get();
+    }
+
+    private function toLegacyWebPushSubscription(WebPushSubscription $subscription): Subscription
+    {
+        return Subscription::create([
+            'endpoint' => $subscription->endpoint,
+            'publicKey' => $subscription->p256dh,
+            'authToken' => $subscription->auth,
+            'contentEncoding' => $subscription->content_encoding ?: 'aes128gcm',
         ]);
     }
 }
