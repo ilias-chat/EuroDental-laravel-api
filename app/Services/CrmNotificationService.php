@@ -65,6 +65,8 @@ class CrmNotificationService
         $payload = json_encode([
             'title' => $notification->title,
             'body' => $notification->body,
+            'icon' => '/icons/notification-icon-192.png',
+            'badge' => '/icons/notification-icon-96.png',
             'type' => $notification->type,
             'data' => $notification->data,
             'notification_id' => $notification->id,
