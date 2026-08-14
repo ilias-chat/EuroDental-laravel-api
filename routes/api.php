@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Crm\ClientController;
 use App\Http\Controllers\Api\V1\Crm\DashboardController;
 use App\Http\Controllers\Api\V1\Crm\LeaveRequestController;
 use App\Http\Controllers\Api\V1\Crm\NotificationController;
+use App\Http\Controllers\Api\V1\Crm\ProductController as CrmProductController;
 use App\Http\Controllers\Api\V1\Crm\ProfileController;
 use App\Http\Controllers\Api\V1\Crm\ServiceController;
 use App\Http\Controllers\Api\V1\Crm\TaskCalendarController;
@@ -58,6 +59,20 @@ Route::prefix('v1')->group(function () {
         Route::get('dashboard/revenue', [DashboardController::class, 'revenue']);
         Route::get('dashboard/payments', [DashboardController::class, 'payments']);
         Route::get('dashboard/products', [DashboardController::class, 'products']);
+    });
+
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':products_read'])->group(function () {
+        Route::get('products', [CrmProductController::class, 'index']);
+        Route::get('products/meta', [CrmProductController::class, 'meta']);
+        Route::get('products/stats', [CrmProductController::class, 'stats']);
+        Route::get('products/stock-shortages', [CrmProductController::class, 'stockShortages']);
+        Route::get('products/{product:id}', [CrmProductController::class, 'show'])->whereNumber('product');
+    });
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':products_write'])->group(function () {
+        Route::post('products', [CrmProductController::class, 'store']);
+        Route::post('products/{product:id}', [CrmProductController::class, 'update'])->whereNumber('product');
+        Route::patch('products/{product:id}/stock', [CrmProductController::class, 'updateStock'])->whereNumber('product');
+        Route::delete('products/{product:id}', [CrmProductController::class, 'destroy'])->whereNumber('product');
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':users_read'])->group(function () {
