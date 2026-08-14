@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Profile;
 use App\Models\User;
+use App\Models\UserFlagEvent;
 use App\Services\Media\MediaUrl;
 use App\Services\CrmNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +21,7 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $flagNetsByUser = UserFlagEvent::netCountsGroupedByUser();
         $users = User::with(['profile.permissions', 'city', 'image', 'leaveRequests' => function ($query) {
                 $query->whereIn('status', ['accepted', 'on_leave'])
                     ->whereDate('start_date', '<=', now())
@@ -27,7 +29,7 @@ class UserController extends Controller
             }])
             ->when($request->filled('search'), fn ($q) => $q->where(fn ($x) => $x->where('first_name', 'like', '%'.$request->search.'%')->orWhere('last_name', 'like', '%'.$request->search.'%')->orWhere('email', 'like', '%'.$request->search.'%')))
             ->when($request->filled('profile_id'), fn ($q) => $q->where('profile_id', $request->profile_id))
-            ->orderBy('first_name')->orderBy('last_name')->get()->map(fn (User $user) => $this->map($user));
+            ->orderBy('first_name')->orderBy('last_name')->get()->map(fn (User $user) => $this->map($user, $flagNetsByUser[$user->id] ?? []));
         return response()->json(['users' => $users]);
     }
     public function meta() { return response()->json(['profiles' => Profile::with('permissions:id,code')->orderBy('sort_order')->get()->map(fn ($p) => ['id'=>$p->id,'profile_name'=>$p->profile_name,'permissions'=>$p->permissions->pluck('code')->values()]), 'cities' => City::orderBy('name')->get(['id','name'])]); }
@@ -38,5 +40,5 @@ class UserController extends Controller
     public function resetPassword(User $user) { $password=Str::random(12); $user->update(['password'=>Hash::make($password),'requires_password_change'=>true]); Mail::to($user->email)->send(new \App\Mail\PasswordResetMail($user,$password)); return response()->json(['message'=>'Un nouveau mot de passe a été envoyé.']); }
     public function sendTestNotification(User $user, CrmNotificationService $notifications): JsonResponse { try { $counts=$notifications->subscriptionCounts($user); $notification=$notifications->notify($user,'Notification de test','Ceci est une notification de test envoyee depuis le CRM.','debug_test',['url'=>'/utilisateurs','debug'=>true]); return response()->json(['success'=>true,'message'=>$notification->is_sent ? 'Notification de test envoyee.' : 'Notification creee, mais aucun push confirme.','sent'=>(bool)$notification->is_sent,'notification_id'=>$notification->id,'subscription_counts'=>$counts]); } catch (Throwable $exception) { Log::warning('Debug push notification failed.', ['user_id'=>$user->id,'error'=>$exception->getMessage()]); return response()->json(['success'=>false,'message'=>'Erreur debug notification: '.$exception->getMessage(),'sent'=>false,'subscription_counts'=>['crm'=>0,'mobile_web'=>0]], 200); } }
     private function validateUser(Request $request, ?User $user=null): array { return $request->validate(['first_name'=>'required|string|max:255','last_name'=>'required|string|max:255','email'=>'required|email|unique:users,email,'.($user?->id ?? 'NULL'),'profile_id'=>'required|exists:profiles,id','city_id'=>'nullable|exists:cities,id','phone_number'=>'nullable|string|max:20','address'=>'nullable|string|max:500']); }
-    private function map(User $u): array { $activeLeave=$u->relationLoaded('leaveRequests')?$u->leaveRequests->first(fn ($leave) => in_array($leave->status, ['accepted', 'on_leave'], true) && $leave->start_date <= now() && $leave->end_date >= now()):null; return ['id'=>$u->id,'first_name'=>$u->first_name,'last_name'=>$u->last_name,'email'=>$u->email,'phone_number'=>$u->phone_number,'address'=>$u->address,'profile_id'=>$u->profile_id,'profile_name'=>$u->profile?->profile_name,'city_id'=>$u->city_id,'city_name'=>$u->city?->name,'image_url'=>$u->image?MediaUrl::image($u->image->image_name):null,'is_blocked'=>(bool)$u->is_blocked,'has_active_leave'=>(bool)$activeLeave,'active_leave'=>$activeLeave?['start_date'=>$activeLeave->start_date?->format('Y-m-d'),'end_date'=>$activeLeave->end_date?->format('Y-m-d')]:null]; }
+    private function map(User $u, array $flags = []): array { $activeLeave=$u->relationLoaded('leaveRequests')?$u->leaveRequests->first(fn ($leave) => in_array($leave->status, ['accepted', 'on_leave'], true) && $leave->start_date <= now() && $leave->end_date >= now()):null; return ['id'=>$u->id,'first_name'=>$u->first_name,'last_name'=>$u->last_name,'email'=>$u->email,'phone_number'=>$u->phone_number,'address'=>$u->address,'profile_id'=>$u->profile_id,'profile_name'=>$u->profile?->profile_name,'city_id'=>$u->city_id,'city_name'=>$u->city?->name,'image_url'=>$u->image?MediaUrl::image($u->image->image_name):null,'is_blocked'=>(bool)$u->is_blocked,'has_active_leave'=>(bool)$activeLeave,'active_leave'=>$activeLeave?['start_date'=>$activeLeave->start_date?->format('Y-m-d'),'end_date'=>$activeLeave->end_date?->format('Y-m-d')]:null,'green_flag_net'=>(int)($flags[UserFlagEvent::KIND_GREEN] ?? 0),'red_flag_net'=>(int)($flags[UserFlagEvent::KIND_RED] ?? 0)]; }
 }

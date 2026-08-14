@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\V1\Crm\TaskCalendarController;
 use App\Http\Controllers\Api\V1\Crm\TaskController;
 use App\Http\Controllers\Api\V1\Crm\TrackingController;
 use App\Http\Controllers\Api\V1\Crm\UserController;
+use App\Http\Controllers\Api\V1\Crm\UserFlagController;
+use App\Http\Controllers\Api\V1\Crm\UserFlagTitleController;
 use App\Http\Controllers\Api\V1\Crm\TaskTypeController;
 use App\Http\Controllers\Api\V1\Webshop\ClientAuthController;
 use App\Http\Controllers\Api\V1\Webshop\ProductController;
@@ -69,6 +71,17 @@ Route::prefix('v1')->group(function () {
         Route::delete('profiles/{profile}', [ProfileController::class, 'destroy']);
         Route::put('profiles/{profile}/permissions', [ProfileController::class, 'syncPermissions']);
         Route::post('profiles/reorder', [ProfileController::class, 'reorder']);
+    });
+
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':user_flags'])->group(function () {
+        Route::get('users/{user}/flag-events', [UserFlagController::class, 'index']);
+        Route::post('users/{user}/flag-events', [UserFlagController::class, 'store']);
+        Route::put('users/{user}/flag-events/{flag}', [UserFlagController::class, 'update']);
+        Route::patch('users/{user}/flag-events/{flag}', [UserFlagController::class, 'retire']);
+        Route::delete('users/{user}/flag-events/{flag}', [UserFlagController::class, 'destroy']);
+        Route::get('flag-titles', [UserFlagTitleController::class, 'index']);
+        Route::post('flag-titles', [UserFlagTitleController::class, 'store']);
+        Route::put('flag-titles/{flagTitle}', [UserFlagTitleController::class, 'update']);
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':manage_vacations'])->group(function () {
