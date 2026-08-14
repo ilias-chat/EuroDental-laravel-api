@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Crm\AuthController;
 use App\Http\Controllers\Api\V1\Crm\ClientController;
+use App\Http\Controllers\Api\V1\Crm\DashboardController;
 use App\Http\Controllers\Api\V1\Crm\LeaveRequestController;
 use App\Http\Controllers\Api\V1\Crm\NotificationController;
 use App\Http\Controllers\Api\V1\Crm\ProfileController;
@@ -51,6 +52,12 @@ Route::prefix('v1')->group(function () {
         Route::get('clients/{clientId}/tasks', [ClientController::class, 'tasks'])->whereNumber('clientId');
         Route::get('clients/{clientId}/orders', [ClientController::class, 'orders'])->whereNumber('clientId');
         Route::get('clients/{clientId}/warranty-products', [ClientController::class, 'products'])->whereNumber('clientId');
+    });
+
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':dashboard_read'])->group(function () {
+        Route::get('dashboard/revenue', [DashboardController::class, 'revenue']);
+        Route::get('dashboard/payments', [DashboardController::class, 'payments']);
+        Route::get('dashboard/products', [DashboardController::class, 'products']);
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':users_read'])->group(function () {
