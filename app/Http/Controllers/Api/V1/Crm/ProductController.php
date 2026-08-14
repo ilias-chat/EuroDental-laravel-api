@@ -154,7 +154,9 @@ class ProductController extends Controller
                     'name' => $product->product_name,
                     'reference' => $product->reference ?? 'N/A',
                     'category' => $product->category?->category ?? 'N/A',
+                    'category_id' => $product->id_category,
                     'brand' => $product->brand?->brand ?? 'N/A',
+                    'brand_id' => $product->id_brand,
                     'current_stock' => (int) $product->stock_quantity,
                     'reserved_stock' => (int) $row['reserved'],
                     'shortage' => (int) $row['reserved'] - (int) $product->stock_quantity,
@@ -165,6 +167,52 @@ class ProductController extends Controller
             ->values();
 
         return response()->json(['count' => $products->count(), 'products' => $products]);
+    }
+
+    public function productOrders(Product $product): JsonResponse
+    {
+        $orders = Order::where('status', 'processing')
+            ->whereHas('orderItems', fn ($query) => $query->where('product_id', $product->id))
+            ->with([
+                'orderItems' => fn ($query) => $query->where('product_id', $product->id)->with('deliveryNoteItems'),
+                'client',
+                'createdBy',
+            ])
+            ->get();
+
+        $rows = collect();
+        foreach ($orders as $order) {
+            foreach ($order->orderItems as $item) {
+                $delivered = (int) $item->deliveryNoteItems->sum('delivered_quantity');
+                $undelivered = (int) $item->quantity - $delivered;
+
+                if ($undelivered <= 0) {
+                    continue;
+                }
+
+                $clientName = trim(($order->client?->first_name ?? '') . ' ' . ($order->client?->last_name ?? ''));
+                $creatorName = trim(($order->createdBy?->first_name ?? '') . ' ' . ($order->createdBy?->last_name ?? ''));
+
+                $rows->push([
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'order_status' => ucfirst((string) $order->status),
+                    'order_date' => $order->created_at?->format('d/m/Y'),
+                    'client_id' => $order->client_id,
+                    'client_name' => $clientName !== '' ? $clientName : 'Client inconnu',
+                    'created_by' => $creatorName !== '' ? $creatorName : 'Inconnu',
+                    'quantity' => (int) $item->quantity,
+                    'delivered_quantity' => $delivered,
+                    'undelivered_quantity' => $undelivered,
+                    'product_reference' => $product->reference ?? 'N/A',
+                    'unit_price' => (float) $item->unit_price,
+                ]);
+
+                break;
+            }
+        }
+
+        return response()->json(['orders' => $rows->sortByDesc('id')->values()]);
     }
 
     private function baseQuery(Request $request)

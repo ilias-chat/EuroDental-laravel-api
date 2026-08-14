@@ -66,6 +66,7 @@ Route::prefix('v1')->group(function () {
         Route::get('products/meta', [CrmProductController::class, 'meta']);
         Route::get('products/stats', [CrmProductController::class, 'stats']);
         Route::get('products/stock-shortages', [CrmProductController::class, 'stockShortages']);
+        Route::get('products/{product:id}/orders', [CrmProductController::class, 'productOrders'])->whereNumber('product');
         Route::get('products/{product:id}', [CrmProductController::class, 'show'])->whereNumber('product');
     });
     Route::middleware(['auth:sanctum', CheckPermission::class . ':products_write'])->group(function () {
