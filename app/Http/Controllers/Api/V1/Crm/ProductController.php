@@ -215,6 +215,107 @@ class ProductController extends Controller
         return response()->json(['orders' => $rows->sortByDesc('id')->values()]);
     }
 
+    public function storeCategory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string', 'max:255', 'unique:categories,category'],
+        ]);
+
+        return response()->json(['category' => Category::create($validated)], 201);
+    }
+
+    public function updateCategory(Request $request, Category $category): JsonResponse
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string', 'max:255', 'unique:categories,category,' . $category->id],
+        ]);
+
+        $category->update($validated);
+
+        return response()->json(['category' => $category->fresh()]);
+    }
+
+    public function destroyCategory(Category $category): JsonResponse
+    {
+        if ($category->subCategories()->exists()) {
+            return response()->json(['message' => 'Impossible de supprimer la categorie car elle a des sous-categories assignees.'], 422);
+        }
+
+        if ($category->products()->exists()) {
+            return response()->json(['message' => 'Impossible de supprimer la categorie car elle est assignee a des produits.'], 422);
+        }
+
+        $category->delete();
+
+        return response()->json(['message' => 'Categorie supprimee.']);
+    }
+
+    public function storeSubCategory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'sub_category' => ['required', 'string', 'max:255'],
+            'category_id' => ['required', 'exists:categories,id'],
+        ]);
+        $this->validateUniqueSubCategory($validated['sub_category'], (int) $validated['category_id']);
+
+        return response()->json(['sub_category' => SubCategory::create($validated)], 201);
+    }
+
+    public function updateSubCategory(Request $request, SubCategory $subCategory): JsonResponse
+    {
+        $validated = $request->validate([
+            'sub_category' => ['required', 'string', 'max:255'],
+            'category_id' => ['required', 'exists:categories,id'],
+        ]);
+        $this->validateUniqueSubCategory($validated['sub_category'], (int) $validated['category_id'], $subCategory->id);
+
+        $subCategory->update($validated);
+
+        return response()->json(['sub_category' => $subCategory->fresh()]);
+    }
+
+    public function destroySubCategory(SubCategory $subCategory): JsonResponse
+    {
+        if ($subCategory->products()->exists()) {
+            return response()->json(['message' => 'Impossible de supprimer la sous-categorie car elle est assignee a des produits.'], 422);
+        }
+
+        $subCategory->delete();
+
+        return response()->json(['message' => 'Sous-categorie supprimee.']);
+    }
+
+    public function storeBrand(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'brand' => ['required', 'string', 'max:255', 'unique:brands,brand'],
+        ]);
+
+        return response()->json(['brand' => Brand::create($validated)], 201);
+    }
+
+    public function updateBrand(Request $request, Brand $brand): JsonResponse
+    {
+        $validated = $request->validate([
+            'brand' => ['required', 'string', 'max:255', 'unique:brands,brand,' . $brand->id],
+        ]);
+
+        $brand->update($validated);
+
+        return response()->json(['brand' => $brand->fresh()]);
+    }
+
+    public function destroyBrand(Brand $brand): JsonResponse
+    {
+        if ($brand->products()->exists()) {
+            return response()->json(['message' => 'Impossible de supprimer la marque car elle est assignee a des produits.'], 422);
+        }
+
+        $brand->delete();
+
+        return response()->json(['message' => 'Marque supprimee.']);
+    }
+
     private function baseQuery(Request $request)
     {
         return Product::with(['category', 'subCategory', 'brand', 'image'])
@@ -262,6 +363,18 @@ class ProductController extends Controller
         }
 
         return $slug;
+    }
+
+    private function validateUniqueSubCategory(string $name, int $categoryId, ?int $exceptId = null): void
+    {
+        $exists = SubCategory::whereRaw('LOWER(sub_category) = ?', [Str::lower($name)])
+            ->where('category_id', $categoryId)
+            ->when($exceptId, fn ($query) => $query->where('id', '!=', $exceptId))
+            ->exists();
+
+        if ($exists) {
+            abort(422, 'Cette sous-categorie existe deja dans la categorie selectionnee.');
+        }
     }
 
     private function serializeProduct(Product $product): array

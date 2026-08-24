@@ -74,6 +74,15 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{product:id}', [CrmProductController::class, 'update'])->whereNumber('product');
         Route::patch('products/{product:id}/stock', [CrmProductController::class, 'updateStock'])->whereNumber('product');
         Route::delete('products/{product:id}', [CrmProductController::class, 'destroy'])->whereNumber('product');
+        Route::post('product-categories', [CrmProductController::class, 'storeCategory']);
+        Route::put('product-categories/{category}', [CrmProductController::class, 'updateCategory']);
+        Route::delete('product-categories/{category}', [CrmProductController::class, 'destroyCategory']);
+        Route::post('product-sub-categories', [CrmProductController::class, 'storeSubCategory']);
+        Route::put('product-sub-categories/{subCategory}', [CrmProductController::class, 'updateSubCategory']);
+        Route::delete('product-sub-categories/{subCategory}', [CrmProductController::class, 'destroySubCategory']);
+        Route::post('product-brands', [CrmProductController::class, 'storeBrand']);
+        Route::put('product-brands/{brand}', [CrmProductController::class, 'updateBrand']);
+        Route::delete('product-brands/{brand}', [CrmProductController::class, 'destroyBrand']);
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':users_read'])->group(function () {
