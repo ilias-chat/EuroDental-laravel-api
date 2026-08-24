@@ -12,7 +12,7 @@ use App\Models\SubCategory;
 use App\Services\Media\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
@@ -92,9 +92,7 @@ class ProductController extends Controller
         $validated['warranty_duration_months'] = $validated['has_warranty'] ? ($validated['warranty_duration_months'] ?? null) : null;
 
         if ($request->hasFile('image')) {
-            if ($product->image?->image_name && Storage::disk('public')->exists($product->image->image_name)) {
-                Storage::disk('public')->delete($product->image->image_name);
-            }
+            $this->deleteMediaImage($product->image?->image_name);
             $validated['image_id'] = $this->storeImage($request);
         }
 
@@ -347,9 +345,39 @@ class ProductController extends Controller
 
     private function storeImage(Request $request): int
     {
-        $path = $request->file('image')->store('products', 'public');
+        $file = $request->file('image');
+        $serviceUrl = rtrim((string) config('media.service_url'), '/');
+        $token = (string) config('media.token');
 
-        return Image::create(['image_name' => $path])->id;
+        if ($serviceUrl === '' || $token === '') {
+            abort(503, 'Le service media est mal configure.');
+        }
+
+        $response = Http::timeout(30)
+            ->withToken($token)
+            ->attach('file', fopen($file->getRealPath(), 'r'), $file->getClientOriginalName())
+            ->post($serviceUrl . '/api/v1/files', [
+                'directory' => 'products',
+                'visibility' => 'public',
+                'uploaded_by_app' => 'crm',
+            ]);
+
+        if (! $response->successful() || ! $response->json('data.path')) {
+            abort(502, 'Impossible d enregistrer l image dans le service media.');
+        }
+
+        return Image::create(['image_name' => $response->json('data.path')])->id;
+    }
+
+    private function deleteMediaImage(?string $path): void
+    {
+        if (! $path || ! config('media.service_url') || ! config('media.token')) {
+            return;
+        }
+
+        Http::timeout(15)
+            ->withToken((string) config('media.token'))
+            ->delete(rtrim((string) config('media.service_url'), '/') . '/api/v1/files/' . implode('/', array_map('rawurlencode', explode('/', trim($path, '/')))));
     }
 
     private function uniqueSlug(string $name): string
