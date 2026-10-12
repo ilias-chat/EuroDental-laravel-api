@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Crm;
 
 use App\Http\Controllers\Controller;
 use App\Services\Media\MediaUrl;
+use App\Services\WarrantyService;
 use Illuminate\Http\Request;
 use App\Models\Task;
 use App\Models\TaskEvent;
@@ -134,6 +135,7 @@ class TaskController extends Controller
 
         $responseTask = [
             'id' => $task->id,
+            'reference' => $task->reference,
             'client_id' => $task->client_id,
             'task_name' => $task->task_name,
             'task_type' => $task->task_type,
@@ -145,6 +147,7 @@ class TaskController extends Controller
             'task_date' => optional($task->task_date)->format('Y-m-d'),
             'started_at' => optional($task->started_at)->toISOString(),
             'finished_at' => optional($task->finished_at)->toISOString(),
+            'cancellation_reason' => $task->cancellation_reason,
             'is_paid' => (bool) ($task->is_paid ?? false),
             'amount_paid' => $task->amount_paid !== null ? (float) $task->amount_paid : null,
             'admin_delivery_amount' => $task->admin_delivery_amount !== null ? (float) $task->admin_delivery_amount : null,
@@ -155,6 +158,7 @@ class TaskController extends Controller
                 : null,
             'hourly_rate' => $task->hourly_rate !== null ? (float) $task->hourly_rate : null,
             'technician_id' => $task->technician_id,
+            'deployment_id' => $task->deployment_id,
             'technician_name' => $task->technician
                 ? trim(($task->technician->first_name ?? '') . ' ' . ($task->technician->last_name ?? ''))
                 : null,
@@ -173,6 +177,7 @@ class TaskController extends Controller
             'can_manage_task' => $canManageTask,
             'user_last_event' => $userLastEventType,
             'helping_users' => $helpingUsers,
+            'helping_user_ids' => $task->helping_user_ids ?? [],
             'client_name' => $task->client
                 ? trim(($task->client->first_name ?? '') . ' ' . ($task->client->last_name ?? ''))
                 : null,
@@ -196,6 +201,7 @@ class TaskController extends Controller
                     'quantity' => $taskProduct->quantity,
                 ];
             })->values(),
+            'warranty_products' => WarrantyService::getActiveWarrantyProducts($task->client, 10),
             'events' => $events,
         ];
 
