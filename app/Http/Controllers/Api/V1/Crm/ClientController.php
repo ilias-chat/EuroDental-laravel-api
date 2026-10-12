@@ -4,45 +4,138 @@ namespace App\Http\Controllers\Api\V1\Crm;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
-use Illuminate\Http\Request;
+use App\Models\City;
+use App\Models\Image;
+use App\Models\Invoice;
+use App\Models\Order;
+use App\Models\Purchase;
+use App\Models\Task;
 use App\Services\Media\MediaUrl;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class ClientController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $query = Client::with(['image', 'city']);
-    
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+        $query = Client::admin()
+            ->with(['image', 'city'])
+            ->withCount(['orders as unpaid_orders_count' => fn ($orders) => $orders->where('paid', false)]);
+
+        if ($request->filled('search')) {
+            $search = '%' . strtolower(trim((string) $request->input('search'))) . '%';
+            $query->where(function ($inner) use ($search) {
+                $inner->whereRaw('LOWER(first_name) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$search])
+                    ->orWhere('phone_number', 'like', $search);
+            });
         }
-    
-        if ($request->has('sort')) {
-            $sort = $request->sort;
-            $direction = $request->get('direction', 'asc');
-            if (in_array($sort, ['first_name', 'last_name', 'created_at'])) {
-                $query->orderBy($sort, $direction);
-            }
-        }
-    
-        $clients = $query->paginate(10);
-    
-        $clients->getCollection()->transform(function ($client) {
-            return [
-                'id' => $client->id,
-                'name' => $client->first_name . ' ' . $client->last_name,
-                'phone' => $client->phone_number,
-                'email' => $client->email,
-                'ice' => $client->ice,
-                'city' => $client->city ? $client->city->name : null,
-                'image_url' => $client->image ? MediaUrl::image($client->image->image_name) : null
-            ];
-        });
-    
+
+        $query->when($request->filled('city_id'), fn ($clients) => $clients->where('city_id', $request->integer('city_id')))
+            ->when($request->filled('source'), fn ($clients) => $clients->where('source', $request->input('source')));
+
+        $sort = in_array($request->input('sort'), ['first_name', 'last_name', 'created_at'], true)
+            ? $request->input('sort')
+            : 'first_name';
+        $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
+        $clients = $query->orderBy($sort, $direction)
+            ->paginate(min(max($request->integer('per_page', 15), 1), 50));
+
         return response()->json([
-            'clients' => $clients
+            'clients' => collect($clients->items())->map(fn (Client $client) => $this->serializeClient($client))->values(),
+            'pagination' => $this->pagination($clients),
         ]);
+    }
+
+    public function meta(): JsonResponse
+    {
+        return response()->json([
+            'cities' => City::query()
+                ->withCount(['clients' => fn ($clients) => $clients->where('source', 'admin')])
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'webshop_clients_count' => Client::query()->where('source', 'webshop')->count(),
+            'action_required_count' => Client::query()->where('handled', false)->count(),
+        ]);
+    }
+
+    public function stats(): JsonResponse
+    {
+        $topClient = Client::admin()->withCount('orders')->orderByDesc('orders_count')->first();
+
+        return response()->json([
+            'total_clients' => Client::admin()->count(),
+            'new_clients' => Client::admin()->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])->count(),
+            'top_client' => $topClient ? trim($topClient->first_name . ' ' . $topClient->last_name) : '-',
+            'top_client_orders' => (int) ($topClient?->orders_count ?? 0),
+        ]);
+    }
+
+    public function actionRequired(): JsonResponse
+    {
+        $clients = Client::query()->with(['city', 'image', 'webshopData.city'])
+            ->where('handled', false)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Client $client) => $this->serializeClient($client, true));
+
+        return response()->json(['clients' => $clients]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $this->validateClient($request);
+        if ($request->hasFile('image')) {
+            $data['image_id'] = $this->storeImage($request);
+        }
+        $data += ['source' => 'admin', 'validated' => true, 'handled' => true];
+        $client = Client::create($data)->load(['city', 'image']);
+
+        return response()->json(['message' => 'Client cree avec succes.', 'client' => $this->serializeClient($client)], 201);
+    }
+
+    public function update(Request $request, Client $client): JsonResponse
+    {
+        $data = $this->validateClient($request);
+        if ($request->hasFile('image')) {
+            $oldImage = $client->image;
+            $data['image_id'] = $this->storeImage($request);
+            $this->deleteMediaImage($oldImage?->image_name);
+            $oldImage?->delete();
+        }
+        $client->update($data);
+
+        return response()->json(['message' => 'Client mis a jour avec succes.', 'client' => $this->serializeClient($client->fresh(['city', 'image']))]);
+    }
+
+    public function validateWebshopClient(Request $request, Client $client): JsonResponse
+    {
+        if ($client->validated) {
+            return response()->json(['message' => 'Ce client est deja valide.'], 422);
+        }
+        $client->update($this->validateWebshopData($request) + ['validated' => true, 'handled' => true]);
+        return response()->json(['message' => 'Client valide avec succes.']);
+    }
+
+    public function syncWebshopClient(Request $request, Client $client): JsonResponse
+    {
+        if (! $client->validated) {
+            return response()->json(['message' => 'Utilisez Valider pour ce nouveau client.'], 422);
+        }
+        $client->update($this->validateWebshopData($request) + ['handled' => true]);
+        return response()->json(['message' => 'Donnees synchronisees avec succes.']);
+    }
+
+    public function ignoreWebshopClient(Client $client): JsonResponse
+    {
+        if ($client->handled) {
+            return response()->json(['message' => 'Ce client est deja traite.'], 422);
+        }
+        $client->update(['handled' => true]);
+        return response()->json(['message' => 'Demande ignoree pour le moment.']);
     }
 
     /**
@@ -305,5 +398,185 @@ class ClientController extends Controller
             'products' => $paginatedProducts->values(),
             'pagination' => $pagination
         ]);
+    }
+
+    public function checkDependencies(Client $client): JsonResponse
+    {
+        $counts = [
+            'orders_count' => $client->orders()->count(),
+            'tasks_count' => $client->tasks()->count(),
+            'invoices_count' => $client->invoices()->count(),
+            'purchases_count' => Purchase::query()->where('client_id', $client->id)->count(),
+        ];
+
+        return response()->json(['has_links' => array_sum($counts) > 0] + $counts);
+    }
+
+    public function replacements(Request $request): JsonResponse
+    {
+        $clients = Client::admin()->with('city')
+            ->when($request->filled('exclude'), fn ($query) => $query->where('id', '!=', $request->integer('exclude')))
+            ->orderBy('first_name')->orderBy('last_name')->get()
+            ->map(fn (Client $client) => [
+                'id' => $client->id,
+                'name' => trim($client->first_name . ' ' . $client->last_name),
+                'city' => $client->city?->name ?? '',
+            ]);
+
+        return response()->json(['clients' => $clients]);
+    }
+
+    public function destroyWithReplacement(Request $request, Client $client): JsonResponse
+    {
+        $dependencies = [
+            $client->orders()->count(),
+            $client->tasks()->count(),
+            $client->invoices()->count(),
+            Purchase::query()->where('client_id', $client->id)->count(),
+        ];
+        $hasLinks = array_sum($dependencies) > 0;
+        $replacementId = $request->integer('replacement_client_id') ?: null;
+
+        if ($hasLinks) {
+            $request->validate(['replacement_client_id' => ['required', 'integer', 'exists:clients,id']]);
+            if ($replacementId === $client->id) {
+                return response()->json(['message' => 'Le client de remplacement doit etre different.'], 422);
+            }
+        }
+
+        DB::transaction(function () use ($client, $replacementId, $hasLinks) {
+            if ($hasLinks) {
+                Order::query()->where('client_id', $client->id)->update(['client_id' => $replacementId]);
+                Task::query()->where('client_id', $client->id)->update(['client_id' => $replacementId]);
+                Invoice::query()->where('client_id', $client->id)->update(['client_id' => $replacementId]);
+                Purchase::query()->where('client_id', $client->id)->update(['client_id' => $replacementId]);
+            }
+
+            $image = $client->image;
+            $client->delete();
+            $this->deleteMediaImage($image?->image_name);
+            $image?->delete();
+        });
+
+        return response()->json(['message' => 'Client supprime avec succes.']);
+    }
+
+    public function storeCity(Request $request): JsonResponse
+    {
+        $data = $request->validate(['name' => ['required', 'string', 'max:255', 'unique:cities,name']]);
+        return response()->json(['city' => City::create($data)], 201);
+    }
+
+    public function updateCity(Request $request, City $city): JsonResponse
+    {
+        $data = $request->validate(['name' => ['required', 'string', 'max:255', 'unique:cities,name,' . $city->id]]);
+        $city->update($data);
+        return response()->json(['city' => $city->fresh()]);
+    }
+
+    private function validateClient(Request $request): array
+    {
+        return $request->validate([
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone_number' => ['nullable', 'string', 'max:20'],
+            'fixed_phone_number' => ['nullable', 'string', 'max:20'],
+            'ice' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string'],
+            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+            'description' => ['nullable', 'string'],
+            'image' => ['nullable', 'image', 'max:2048'],
+        ]);
+    }
+
+    private function validateWebshopData(Request $request): array
+    {
+        return $request->validate([
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone_number' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string'],
+            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+        ]);
+    }
+
+    private function serializeClient(Client $client, bool $includeWebshop = false): array
+    {
+        $data = [
+            'id' => $client->id,
+            'first_name' => $client->first_name,
+            'last_name' => $client->last_name,
+            'name' => trim($client->first_name . ' ' . $client->last_name),
+            'email' => $client->email,
+            'phone_number' => $client->phone_number,
+            'fixed_phone_number' => $client->fixed_phone_number,
+            'ice' => $client->ice,
+            'address' => $client->address,
+            'description' => $client->description,
+            'city_id' => $client->city_id,
+            'city' => $client->city?->name,
+            'source' => $client->source,
+            'validated' => (bool) $client->validated,
+            'handled' => (bool) $client->handled,
+            'unpaid_orders_count' => (int) ($client->unpaid_orders_count ?? 0),
+            'image_url' => $client->image ? MediaUrl::image($client->image->image_name) : null,
+            'created_at' => $client->created_at?->toISOString(),
+            'updated_at' => $client->updated_at?->toISOString(),
+        ];
+
+        if ($includeWebshop) {
+            $data['webshop_data'] = $client->webshopData ? [
+                'first_name' => $client->webshopData->first_name,
+                'last_name' => $client->webshopData->last_name,
+                'phone_number' => $client->webshopData->phone_number,
+                'address' => $client->webshopData->address,
+                'city_id' => $client->webshopData->city_id,
+                'city' => $client->webshopData->city?->name,
+            ] : null;
+        }
+
+        return $data;
+    }
+
+    private function pagination($paginator): array
+    {
+        return [
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'from' => $paginator->firstItem(),
+            'to' => $paginator->lastItem(),
+        ];
+    }
+
+    private function storeImage(Request $request): int
+    {
+        $file = $request->file('image');
+        $serviceUrl = rtrim((string) config('media.service_url'), '/');
+        $token = (string) config('media.token');
+        abort_if($serviceUrl === '' || $token === '', 503, 'Le service media est mal configure.');
+
+        $response = Http::timeout(30)->withToken($token)
+            ->attach('file', fopen($file->getRealPath(), 'r'), $file->getClientOriginalName())
+            ->post($serviceUrl . '/api/v1/files', [
+                'directory' => 'clients',
+                'visibility' => 'public',
+                'uploaded_by_app' => 'crm',
+            ]);
+        abort_unless($response->successful() && $response->json('data.path'), 502, 'Impossible d enregistrer l image.');
+
+        return Image::create(['image_name' => $response->json('data.path')])->id;
+    }
+
+    private function deleteMediaImage(?string $path): void
+    {
+        if (! $path || ! config('media.service_url') || ! config('media.token')) {
+            return;
+        }
+        Http::timeout(15)->withToken((string) config('media.token'))
+            ->delete(rtrim((string) config('media.service_url'), '/') . '/api/v1/files/' . implode('/', array_map('rawurlencode', explode('/', trim($path, '/')))));
     }
 }

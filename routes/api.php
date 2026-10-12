@@ -49,10 +49,27 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':clients_read'])->group(function () {
         Route::get('clients', [ClientController::class, 'index']);
+        Route::get('clients/meta', [ClientController::class, 'meta']);
+        Route::get('clients/action-required', [ClientController::class, 'actionRequired']);
+        Route::get('clients/replacements', [ClientController::class, 'replacements']);
         Route::get('clients/{clientId}', [ClientController::class, 'show'])->whereNumber('clientId');
         Route::get('clients/{clientId}/tasks', [ClientController::class, 'tasks'])->whereNumber('clientId');
         Route::get('clients/{clientId}/orders', [ClientController::class, 'orders'])->whereNumber('clientId');
         Route::get('clients/{clientId}/warranty-products', [ClientController::class, 'products'])->whereNumber('clientId');
+    });
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':clients_stats'])->group(function () {
+        Route::get('clients/stats', [ClientController::class, 'stats']);
+    });
+    Route::middleware(['auth:sanctum', CheckPermission::class . ':clients_write'])->group(function () {
+        Route::post('clients', [ClientController::class, 'store']);
+        Route::post('clients/{client}', [ClientController::class, 'update'])->whereNumber('client');
+        Route::get('clients/{client}/dependencies', [ClientController::class, 'checkDependencies'])->whereNumber('client');
+        Route::delete('clients/{client}', [ClientController::class, 'destroyWithReplacement'])->whereNumber('client');
+        Route::post('clients/{client}/validate', [ClientController::class, 'validateWebshopClient'])->whereNumber('client');
+        Route::post('clients/{client}/sync', [ClientController::class, 'syncWebshopClient'])->whereNumber('client');
+        Route::post('clients/{client}/ignore', [ClientController::class, 'ignoreWebshopClient'])->whereNumber('client');
+        Route::post('client-cities', [ClientController::class, 'storeCity']);
+        Route::put('client-cities/{city}', [ClientController::class, 'updateCity']);
     });
 
     Route::middleware(['auth:sanctum', CheckPermission::class . ':dashboard_read'])->group(function () {
