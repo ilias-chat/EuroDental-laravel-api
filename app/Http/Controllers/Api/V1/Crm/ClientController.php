@@ -25,13 +25,7 @@ class ClientController extends Controller
             ->withCount(['orders as unpaid_orders_count' => fn ($orders) => $orders->where('paid', false)]);
 
         if ($request->filled('search')) {
-            $search = '%' . strtolower(trim((string) $request->input('search'))) . '%';
-            $query->where(function ($inner) use ($search) {
-                $inner->whereRaw('LOWER(first_name) LIKE ?', [$search])
-                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$search])
-                    ->orWhereRaw('LOWER(email) LIKE ?', [$search])
-                    ->orWhere('phone_number', 'like', $search);
-            });
+            $this->applySearch($query, (string) $request->input('search'));
         }
 
         $query->when($request->filled('city_id'), fn ($clients) => $clients->where('city_id', $request->integer('city_id')))
@@ -414,16 +408,33 @@ class ClientController extends Controller
 
     public function replacements(Request $request): JsonResponse
     {
+        $search = trim((string) $request->query('search', ''));
+
         $clients = Client::admin()->with('city')
             ->when($request->filled('exclude'), fn ($query) => $query->where('id', '!=', $request->integer('exclude')))
-            ->orderBy('first_name')->orderBy('last_name')->get()
-            ->map(fn (Client $client) => [
+            ->when($search !== '', function ($query) use ($search) {
+                $this->applySearch($query, $search);
+            })
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->paginate(15);
+
+        $items = $clients->getCollection()->map(fn (Client $client) => [
                 'id' => $client->id,
                 'name' => trim($client->first_name . ' ' . $client->last_name),
                 'city' => $client->city?->name ?? '',
             ]);
 
-        return response()->json(['clients' => $clients]);
+        return response()->json([
+            'clients' => $items,
+            'pagination' => [
+                'current_page' => $clients->currentPage(),
+                'last_page' => $clients->lastPage(),
+                'per_page' => $clients->perPage(),
+                'total' => $clients->total(),
+                'has_more' => $clients->hasMorePages(),
+            ],
+        ]);
     }
 
     public function destroyWithReplacement(Request $request, Client $client): JsonResponse
@@ -488,6 +499,24 @@ class ClientController extends Controller
             'description' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'max:2048'],
         ]);
+    }
+
+    private function applySearch($query, string $search): void
+    {
+        $terms = preg_split('/\s+/u', strtolower(trim($search)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        foreach (array_slice($terms, 0, 10) as $term) {
+            $like = '%' . $term . '%';
+
+            $query->where(function ($inner) use ($like) {
+                $inner->whereRaw('LOWER(TRIM(first_name)) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(TRIM(last_name)) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(email) LIKE ?', [$like])
+                    ->orWhere('phone_number', 'like', $like)
+                    ->orWhere('fixed_phone_number', 'like', $like)
+                    ->orWhereHas('city', fn ($cityQuery) => $cityQuery->whereRaw('LOWER(name) LIKE ?', [$like]));
+            });
+        }
     }
 
     private function validateWebshopData(Request $request): array
