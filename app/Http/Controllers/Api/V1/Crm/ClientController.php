@@ -138,7 +138,10 @@ class ClientController extends Controller
      */
     public function show($clientId)
     {
-        $client = Client::with(['city', 'image'])->find($clientId);
+        $client = Client::admin()
+            ->with(['city', 'image'])
+            ->withCount(['orders as unpaid_orders_count' => fn ($orders) => $orders->where('paid', false)])
+            ->find($clientId);
 
         if (!$client) {
             return response()->json([
@@ -147,23 +150,97 @@ class ClientController extends Controller
             ], 404);
         }
 
-        // Format the response
-        $response = [
-            'id' => $client->id,
-            'first_name' => $client->first_name,
-            'last_name' => $client->last_name,
-            'city_name' => $client->city ? $client->city->name : null,
-            'image_name' => $client->image ? MediaUrl::image($client->image->image_name) : null,
-            'phone_number' => $client->phone_number,
-            'email' => $client->email,
-            'ice' => $client->ice,
-            'address' => $client->address,
-            'created_at' => $client->created_at ? $client->created_at->toISOString() : null
-        ];
-
         return response()->json([
             'success' => true,
-            'client' => $response
+            'client' => $this->serializeClient($client),
+        ]);
+    }
+
+    public function clientStats($clientId): JsonResponse
+    {
+        $client = Client::admin()->find($clientId);
+
+        if (! $client) {
+            return response()->json(['message' => 'Client introuvable'], 404);
+        }
+
+        $orders = $client->orders()
+            ->whereIn('status', ['processing', 'shipped'])
+            ->with('payments')
+            ->get();
+
+        $paidTotal = (float) $orders->sum(fn ($order) => $order->payments->sum('amount'));
+        $orderTotal = (float) $orders->sum('total_with_tax');
+        $unpaidTotal = max(0, $orderTotal - $paidTotal);
+        $unpaidCount = $orders->filter(
+            fn ($order) => (float) $order->payments->sum('amount') < (float) $order->total_with_tax
+        )->count();
+
+        $activeWarrantyCount = $client->orders()
+            ->with('deliveryNotes.deliveryNoteItems.orderItem.product')
+            ->get()
+            ->flatMap(fn ($order) => $order->deliveryNotes)
+            ->flatMap(fn ($deliveryNote) => $deliveryNote->deliveryNoteItems)
+            ->filter(function ($item) {
+                $product = $item->orderItem?->product;
+                if (! $product?->has_warranty || $product->warranty_duration_months <= 0) {
+                    return false;
+                }
+
+                $deliveryDate = $item->deliveryNote->delivery_date ?? $item->deliveryNote->created_at;
+                return now()->lte(\Carbon\Carbon::parse($deliveryDate)->addMonths($product->warranty_duration_months));
+            })
+            ->sum('delivered_quantity');
+
+        return response()->json([
+            'stats' => [
+                'total_orders' => $orders->count(),
+                'unpaid_count' => $unpaidCount,
+                'unpaid_total' => $unpaidTotal,
+                'paid_total' => $paidTotal,
+                'active_warranty_count' => (int) $activeWarrantyCount,
+            ],
+        ]);
+    }
+
+    public function payments(Request $request, $clientId): JsonResponse
+    {
+        $client = Client::admin()->find($clientId);
+
+        if (! $client) {
+            return response()->json(['message' => 'Client introuvable'], 404);
+        }
+
+        $payments = $client->orders()
+            ->with('payments')
+            ->get()
+            ->flatMap(fn ($order) => $order->payments->map(fn ($payment) => [
+                'id' => $payment->id,
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'payment_date' => $payment->payment_date?->toDateString(),
+                'amount' => (float) $payment->amount,
+                'payment_method' => $payment->payment_method,
+                'notes' => $payment->notes,
+            ]))
+            ->sortByDesc('id')
+            ->values();
+
+        $perPage = min(max($request->integer('limit', 10), 1), 100);
+        $currentPage = max($request->integer('page', 1), 1);
+        $total = $payments->count();
+        $lastPage = max((int) ceil($total / $perPage), 1);
+        $items = $payments->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        return response()->json([
+            'payments' => $items,
+            'pagination' => [
+                'current_page' => $currentPage,
+                'total_pages' => $lastPage,
+                'total_items' => $total,
+                'has_next' => $currentPage < $lastPage,
+                'has_prev' => $currentPage > 1,
+            ],
         ]);
     }
 
@@ -182,9 +259,12 @@ class ClientController extends Controller
             ], 404);
         }
 
-        $query = $client->tasks();
+        $query = $client->tasks()->with('technician.image');
 
-        // Filter by status if provided
+        if ($request->filled('task_type')) {
+            $query->where('task_type', $request->input('task_type'));
+        }
+
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
@@ -207,6 +287,12 @@ class ClientController extends Controller
                 'task_date' => $task->task_date,
                 'description' => $task->description,
                 'technician_id' => $task->technician_id,
+                'is_paid' => (bool) $task->is_paid,
+                'technician' => $task->technician ? [
+                    'id' => $task->technician->id,
+                    'name' => trim($task->technician->first_name . ' ' . $task->technician->last_name),
+                    'image_url' => $task->technician->image ? MediaUrl::image($task->technician->image->image_name) : null,
+                ] : null,
                 'created_at' => $task->created_at ? $task->created_at->toISOString() : null
             ];
         });
@@ -247,6 +333,13 @@ class ClientController extends Controller
         // Filter by status if provided
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->filled('paid')) {
+            $paid = filter_var($request->input('paid'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($paid !== null) {
+                $query->where('paid', $paid);
+            }
         }
 
         // Get pagination parameters
@@ -313,6 +406,7 @@ class ClientController extends Controller
         $orders = $client->orders()
             ->whereNotIn('status', ['pending', 'canceled'])
             ->with([
+                'deliveryNotes.deliveryNoteItems.orderItem.order',
                 'deliveryNotes.deliveryNoteItems.orderItem.product.category'
             ])->get();
 
@@ -347,12 +441,15 @@ class ClientController extends Controller
                     return [
                         'id' => $product->id,
                         'product_name' => $product->product_name,
+                        'order_id' => $dni->orderItem->order_id,
+                        'order_number' => $dni->orderItem->order?->order_number,
                         'category' => $product->category ? $product->category->category : null,
                         'category_id' => $product->id_category,
                         'purchase_date' => $warrantyStart->toDateString(),
                         'warranty_expiry' => $warrantyEnd->toDateString(),
                         'warranty_status' => $daysLeft > 0 ? 'active' : 'expired',
                         'days_left_in_warranty' => (string) max(0, $daysLeft),
+                        'delivered_quantity' => (float) $dni->delivered_quantity,
                         'serial_number' => $product->reference,
                         'price' => (float) $product->price,
                         'technician_notes' => 'Product delivered successfully'
