@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\Purchase;
 use App\Models\Task;
 use App\Services\Media\MediaUrl;
+use App\Services\Clients\ClientDuplicateDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +78,36 @@ class ClientController extends Controller
             ->map(fn (Client $client) => $this->serializeClient($client, true));
 
         return response()->json(['clients' => $clients]);
+    }
+
+    public function duplicates(Request $request, ClientDuplicateDetector $detector): JsonResponse
+    {
+        $clients = Client::query()->with('webshopData')->orderBy('id')
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone_number', 'fixed_phone_number', 'source', 'validated'])
+            ->map(fn (Client $client) => [
+                'id' => $client->id,
+                'first_name' => $client->first_name,
+                'last_name' => $client->last_name,
+                'name' => trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? '')),
+                'email' => $client->email,
+                'phone_number' => $client->phone_number,
+                'fixed_phone_number' => $client->fixed_phone_number,
+                'source' => $client->source,
+                'validated' => (bool) $client->validated,
+            ])->all();
+
+        $matches = $detector->detect($clients);
+        $page = max(1, $request->integer('page', 1));
+        $perPage = 20;
+
+        return response()->json([
+            'matches' => array_slice($matches, ($page - 1) * $perPage, $perPage),
+            'pagination' => [
+                'current_page' => $page,
+                'last_page' => max(1, (int) ceil(count($matches) / $perPage)),
+                'total' => count($matches),
+            ],
+        ]);
     }
 
     public function store(Request $request): JsonResponse

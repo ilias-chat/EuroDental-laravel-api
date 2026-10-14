@@ -51,6 +51,7 @@ Route::prefix('v1')->group(function () {
         Route::get('clients', [ClientController::class, 'index']);
         Route::get('clients/meta', [ClientController::class, 'meta']);
         Route::get('clients/action-required', [ClientController::class, 'actionRequired']);
+        Route::get('clients/duplicates', [ClientController::class, 'duplicates']);
         Route::get('clients/replacements', [ClientController::class, 'replacements']);
         Route::get('clients/{clientId}', [ClientController::class, 'show'])->whereNumber('clientId');
         Route::get('clients/{clientId}/stats', [ClientController::class, 'clientStats'])->whereNumber('clientId');
