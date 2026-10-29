@@ -11,7 +11,7 @@ use App\Models\Order;
 use App\Models\Purchase;
 use App\Models\Task;
 use App\Services\Media\MediaUrl;
-use App\Services\Clients\ClientDuplicateDetector;
+use App\Services\Clients\ClientDuplicateInbox;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -80,44 +80,22 @@ class ClientController extends Controller
         return response()->json(['clients' => $clients]);
     }
 
-    public function duplicates(Request $request, ClientDuplicateDetector $detector): JsonResponse
-    {
-        $clients = Client::query()->with('webshopData')->orderBy('id')
-            ->get(['id', 'first_name', 'last_name', 'email', 'phone_number', 'fixed_phone_number', 'source', 'validated'])
-            ->map(fn (Client $client) => [
-                'id' => $client->id,
-                'first_name' => $client->first_name,
-                'last_name' => $client->last_name,
-                'name' => trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? '')),
-                'email' => $client->email,
-                'phone_number' => $client->phone_number,
-                'fixed_phone_number' => $client->fixed_phone_number,
-                'source' => $client->source,
-                'validated' => (bool) $client->validated,
-            ])->all();
-
-        $matches = $detector->detect($clients);
-        $page = max(1, $request->integer('page', 1));
-        $perPage = 20;
-
-        return response()->json([
-            'matches' => array_slice($matches, ($page - 1) * $perPage, $perPage),
-            'pagination' => [
-                'current_page' => $page,
-                'last_page' => max(1, (int) ceil(count($matches) / $perPage)),
-                'total' => count($matches),
-            ],
-        ]);
-    }
-
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, ClientDuplicateInbox $inbox): JsonResponse
     {
         $data = $this->validateClient($request);
+        $matches = $inbox->check($data);
+        if ($matches && ! $request->boolean('allow_duplicate')) {
+            return response()->json(['message' => 'Des clients similaires existent deja.', 'matches' => array_slice($matches, 0, 10)], 409);
+        }
         if ($request->hasFile('image')) {
             $data['image_id'] = $this->storeImage($request);
         }
         $data += ['source' => 'admin', 'validated' => true, 'handled' => true];
-        $client = Client::create($data)->load(['city', 'image']);
+        $client = DB::transaction(function () use ($data, $inbox) {
+            $client = Client::create($data)->load(['city', 'image']);
+            $inbox->scan();
+            return $client;
+        });
 
         return response()->json(['message' => 'Client cree avec succes.', 'client' => $this->serializeClient($client)], 201);
     }
@@ -132,6 +110,7 @@ class ClientController extends Controller
             $oldImage?->delete();
         }
         $client->update($data);
+        app(ClientDuplicateInbox::class)->scan();
 
         return response()->json(['message' => 'Client mis a jour avec succes.', 'client' => $this->serializeClient($client->fresh(['city', 'image']))]);
     }

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Crm\AuthController;
 use App\Http\Controllers\Api\V1\Crm\ClientController;
+use App\Http\Controllers\Api\V1\Crm\ClientDuplicateController;
 use App\Http\Controllers\Api\V1\Crm\DashboardController;
 use App\Http\Controllers\Api\V1\Crm\LeaveRequestController;
 use App\Http\Controllers\Api\V1\Crm\NotificationController;
@@ -51,7 +52,7 @@ Route::prefix('v1')->group(function () {
         Route::get('clients', [ClientController::class, 'index']);
         Route::get('clients/meta', [ClientController::class, 'meta']);
         Route::get('clients/action-required', [ClientController::class, 'actionRequired']);
-        Route::get('clients/duplicates', [ClientController::class, 'duplicates']);
+        Route::get('clients/duplicates', [ClientDuplicateController::class, 'index']);
         Route::get('clients/replacements', [ClientController::class, 'replacements']);
         Route::get('clients/{clientId}', [ClientController::class, 'show'])->whereNumber('clientId');
         Route::get('clients/{clientId}/stats', [ClientController::class, 'clientStats'])->whereNumber('clientId');
@@ -64,6 +65,11 @@ Route::prefix('v1')->group(function () {
         Route::get('clients/stats', [ClientController::class, 'stats']);
     });
     Route::middleware(['auth:sanctum', CheckPermission::class . ':clients_write'])->group(function () {
+        Route::post('clients/duplicates/scan', [ClientDuplicateController::class, 'scan']);
+        Route::post('clients/duplicates/check', [ClientDuplicateController::class, 'check']);
+        Route::patch('clients/duplicates/{duplicate}', [ClientDuplicateController::class, 'review']);
+        Route::get('clients/duplicates/{duplicate}/preview', [ClientDuplicateController::class, 'preview']);
+        Route::post('clients/duplicates/{duplicate}/merge', [ClientDuplicateController::class, 'merge']);
         Route::post('clients', [ClientController::class, 'store']);
         Route::post('clients/{client}', [ClientController::class, 'update'])->whereNumber('client');
         Route::get('clients/{client}/dependencies', [ClientController::class, 'checkDependencies'])->whereNumber('client');
