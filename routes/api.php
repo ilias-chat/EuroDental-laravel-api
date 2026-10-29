@@ -70,6 +70,8 @@ Route::prefix('v1')->group(function () {
         Route::patch('clients/duplicates/{duplicate}', [ClientDuplicateController::class, 'review']);
         Route::get('clients/duplicates/{duplicate}/preview', [ClientDuplicateController::class, 'preview']);
         Route::post('clients/duplicates/{duplicate}/merge', [ClientDuplicateController::class, 'merge']);
+        Route::get('clients/duplicates/{duplicate}/undo-preview', [ClientDuplicateController::class, 'undoPreview']);
+        Route::post('clients/duplicates/{duplicate}/undo', [ClientDuplicateController::class, 'undo']);
         Route::post('clients', [ClientController::class, 'store']);
         Route::post('clients/{client}', [ClientController::class, 'update'])->whereNumber('client');
         Route::get('clients/{client}/dependencies', [ClientController::class, 'checkDependencies'])->whereNumber('client');
