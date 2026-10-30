@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Crm\ProfileController;
 use App\Http\Controllers\Api\V1\Crm\ServiceController;
 use App\Http\Controllers\Api\V1\Crm\TaskCalendarController;
 use App\Http\Controllers\Api\V1\Crm\TaskController;
+use App\Http\Controllers\Api\V1\Crm\TaskCommentController;
 use App\Http\Controllers\Api\V1\Crm\TrackingController;
 use App\Http\Controllers\Api\V1\Crm\UserController;
 use App\Http\Controllers\Api\V1\Crm\UserFlagController;
@@ -157,6 +158,8 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', CheckPermission::class . ':tasks_read'])->group(function () {
         Route::get('tasks', [TaskController::class, 'index']);
         Route::get('tasks/{id}', [TaskController::class, 'show'])->whereNumber('id');
+        Route::get('tasks/{task}/comments', [TaskCommentController::class, 'index'])->whereNumber('task');
+        Route::post('tasks/{task}/comments', [TaskCommentController::class, 'store'])->whereNumber('task')->middleware('throttle:30,1');
         Route::get('tasks/calendar/month', [TaskCalendarController::class, 'month']);
         Route::get('tasks/delivered-payments', [TaskCalendarController::class, 'deliveredPayments']);
         Route::get('tasks/types', [TaskTypeController::class, 'index']);

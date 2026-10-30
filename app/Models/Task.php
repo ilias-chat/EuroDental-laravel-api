@@ -70,6 +70,7 @@ class Task extends Model
     public function services() { return $this->belongsToMany(Service::class, 'task_services')->withPivot('price'); }
     public function invoice() { return $this->hasOne(Invoice::class); }
     public function events() { return $this->hasMany(TaskEvent::class)->orderBy('event_time', 'asc'); }
+    public function comments() { return $this->hasMany(TaskComment::class); }
 
     /**
      * Check if task has been started
