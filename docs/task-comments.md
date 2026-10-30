@@ -33,9 +33,9 @@ Deleting a user preserves their comments with a null author; deleting a task cas
 
 ## Comment notifications (CRM and PWA)
 
-- New comments notify the main technician and helpers, excluding the author and duplicate recipients. Unassigned managers are not automatically subscribed in this first version.
+- New comments notify the main technician, helpers and explicitly following admins, excluding the author and duplicate recipients. Unassigned managers are not automatically subscribed.
 - One unread `task_comment` notification per recipient/task aggregates successive comments; after reading it, a subsequent comment creates a new notification.
-- The existing shared `notifications` table is used. No additional migration is required for notifications. Both APIs must connect to the same database and have the `task_comments` table installed.
+- The existing shared `notifications` table is used. Both APIs must connect to the same database and have the `task_comments` table installed. Optional admin subscriptions use the shared `task_followers` table described below.
 - Closing the notification panel no longer reads its contents. Opening Comments acknowledges through the latest fetched comment ID. Other notification types are read when clicked; explicit mark-all-read remains available through the existing API.
 - CRM links use `/taches?task=123&tab=comments`; PWA links use `/tasks/123?tab=comments`. An unauthenticated user returns to this task after login.
 - Laravel mobile exposes the same GET/POST/read endpoints under `/api/tasks/{task}/comments`. Mobile participants can read/post without a CRM-specific `tasks_read` permission. Unassigned viewers/managers follow the same scope rules above.
@@ -51,3 +51,24 @@ For cross-app browser push, both APIs must use the **same existing VAPID key pai
 Do not run a second migration against the shared database from the mobile API; use the CRM API migration or SQL described above once.
 
 Tests use an isolated in-memory database: `php vendor/bin/phpunit tests/Feature/TaskCommentsTest.php`.
+
+## Following a task
+
+The CRM task drawer header contains **Suivre la tache**, toggling to **Ne plus suivre** after success. This subscribes the authenticated admin to future comment notifications only. It never changes the technician, helpers, task visibility or task permissions, and does not notify about status changes in this version.
+
+- Following requires both `tasks_view_all` and `tasks_write`; CRM routes additionally require `tasks_read`.
+- Permissions are rechecked for followers when each comment is posted. Losing either permission stops future follower notifications.
+- Participants receive comments automatically. The CRM shows **Notifications equipe** instead of an optional follow toggle for participants; deleting a manual follow does not opt out of team notifications.
+- Unfollowing stops future follower notifications; it does not remove existing notification history. A read-only admin who still has global visibility may unsubscribe an existing follow.
+- Requests operate on the authenticated user only, are idempotent, and are serialized against comment posting with a task-row lock.
+- Both APIs support GET (state), POST (follow), DELETE (unfollow) at `/tasks/{task}/follow`, beneath their usual `/api/v1` or `/api` prefixes. Responses include `following`, `can_follow`, `participant`.
+
+Install the table **once** in the shared database before deploying the feature:
+
+```bash
+php artisan migrate --path=database/migrations/2026_10_30_200000_create_task_followers_table.php --force
+```
+
+Alternatively, run `database/sql/task_followers.sql` in phpMyAdmin. It includes the migration registration. Do not run both methods. It creates only the subscription table and does not modify existing tasks, teams, comments or notifications. Deleting a task or user cascades its subscriptions.
+
+Deploy both APIs so comments posted from the PWA also notify followed admins, and deploy the updated CRM for the follow button. The PWA uses its existing notification panel and task links; its UI does not gain a separate follow control in this change. During a rolling deployment before this table exists, existing participant notifications continue to work; the follow control reports unavailable until the schema and endpoints are present.

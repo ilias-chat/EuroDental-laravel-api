@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Crm\ServiceController;
 use App\Http\Controllers\Api\V1\Crm\TaskCalendarController;
 use App\Http\Controllers\Api\V1\Crm\TaskController;
 use App\Http\Controllers\Api\V1\Crm\TaskCommentController;
+use App\Http\Controllers\Api\V1\Crm\TaskFollowController;
 use App\Http\Controllers\Api\V1\Crm\TrackingController;
 use App\Http\Controllers\Api\V1\Crm\UserController;
 use App\Http\Controllers\Api\V1\Crm\UserFlagController;
@@ -159,6 +160,9 @@ Route::prefix('v1')->group(function () {
         Route::get('tasks', [TaskController::class, 'index']);
         Route::get('tasks/{id}', [TaskController::class, 'show'])->whereNumber('id');
         Route::get('tasks/{task}/comments', [TaskCommentController::class, 'index'])->whereNumber('task');
+        Route::get('tasks/{task}/follow', [TaskFollowController::class, 'show'])->whereNumber('task');
+        Route::post('tasks/{task}/follow', [TaskFollowController::class, 'store'])->whereNumber('task');
+        Route::delete('tasks/{task}/follow', [TaskFollowController::class, 'destroy'])->whereNumber('task');
         Route::post('tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->whereNumber('task');
         Route::post('tasks/{task}/comments', [TaskCommentController::class, 'store'])->whereNumber('task')->middleware('throttle:30,1');
         Route::get('tasks/calendar/month', [TaskCalendarController::class, 'month']);
