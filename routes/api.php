@@ -159,6 +159,7 @@ Route::prefix('v1')->group(function () {
         Route::get('tasks', [TaskController::class, 'index']);
         Route::get('tasks/{id}', [TaskController::class, 'show'])->whereNumber('id');
         Route::get('tasks/{task}/comments', [TaskCommentController::class, 'index'])->whereNumber('task');
+        Route::post('tasks/{task}/comments/read', [TaskCommentController::class, 'markRead'])->whereNumber('task');
         Route::post('tasks/{task}/comments', [TaskCommentController::class, 'store'])->whereNumber('task')->middleware('throttle:30,1');
         Route::get('tasks/calendar/month', [TaskCalendarController::class, 'month']);
         Route::get('tasks/delivered-payments', [TaskCalendarController::class, 'deliveredPayments']);

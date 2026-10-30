@@ -62,7 +62,7 @@ class NotificationController extends Controller
         // Get notifications for the authenticated user only
         $user = auth()->user();
         
-        $query = $user->notifications()->orderBy('created_at', 'desc');
+        $query = $user->notifications()->orderBy('updated_at', 'desc')->orderByDesc('id');
         
         // Filter by read status
         if ($request->has('is_read')) {

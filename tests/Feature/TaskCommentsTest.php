@@ -6,6 +6,8 @@ use App\Models\Permission;
 use App\Models\Profile;
 use App\Models\Task;
 use App\Models\TaskComment;
+use App\Models\Notification;
+use App\Services\Tasks\TaskCommentPush;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +29,8 @@ class TaskCommentsTest extends TestCase
         Schema::create('users', function (Blueprint $table) { $table->id(); $table->string('first_name'); $table->string('last_name'); $table->unsignedBigInteger('profile_id'); $table->unsignedBigInteger('image_id')->nullable(); $table->timestamps(); });
         Schema::create('tasks', function (Blueprint $table) { $table->id(); $table->unsignedBigInteger('technician_id'); $table->unsignedBigInteger('create_by')->nullable(); $table->json('helping_user_ids')->nullable(); $table->timestamps(); });
         (require database_path('migrations/2026_10_30_190000_create_task_comments_table.php'))->up();
+        (require database_path('migrations/2025_01_27_000001_create_notifications_table.php'))->up();
+        $this->mock(TaskCommentPush::class)->shouldReceive('deliver')->andReturnNull();
     }
 
     public function test_main_technician_can_post_and_author_cannot_be_spoofed(): void
@@ -114,6 +118,63 @@ class TaskCommentsTest extends TestCase
         $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Interdit.'])->assertUnauthorized();
         Sanctum::actingAs($user);
         $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Interdit.'])->assertForbidden();
+    }
+
+    public function test_participants_are_notified_once_excluding_author_and_unassigned_managers(): void
+    {
+        $main = $this->user(); $helper = $this->user(); $manager = $this->user(['tasks_read', 'tasks_view_all', 'tasks_write']);
+        $task = $this->task($main, [$main->id, (string) $helper->id, $helper->id]);
+        Sanctum::actingAs($main);
+        $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Premiere note'])->assertCreated();
+        $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Deuxieme note'])->assertCreated();
+        $this->assertSame(1, Notification::count());
+        $notification = Notification::first();
+        $this->assertSame($helper->id, $notification->user_id);
+        $this->assertSame(2, $notification->data['comment_count']);
+        $this->assertSame("/tasks/{$task->id}?tab=comments", $notification->data['pwa_url']);
+        $this->assertSame("/taches?task={$task->id}&tab=comments", $notification->data['crm_url']);
+        $this->assertNotSame($manager->id, $notification->user_id);
+    }
+
+    public function test_comment_read_receipt_is_scoped_to_user_task_and_displayed_comment(): void
+    {
+        $main = $this->user(); $helper = $this->user(); $task = $this->task($main, [$helper->id]);
+        Sanctum::actingAs($main);
+        $first = $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Premier'])->assertCreated()->json('comment.id');
+        $last = $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Recent'])->assertCreated()->json('comment.id');
+        Sanctum::actingAs($helper);
+        $this->getJson("/api/v1/tasks/{$task->id}/comments")->assertOk();
+        $this->assertFalse(Notification::first()->is_read);
+        $this->postJson("/api/v1/tasks/{$task->id}/comments/read", ['through_id' => $first])->assertOk();
+        $this->assertFalse(Notification::first()->is_read);
+        $this->postJson("/api/v1/tasks/{$task->id}/comments/read", ['through_id' => $last])->assertOk();
+        $this->assertTrue(Notification::first()->is_read);
+        Sanctum::actingAs($main);
+        $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Nouveau fil'])->assertCreated();
+        $this->assertSame(2, Notification::count());
+        $this->assertSame(1, Notification::where('is_read', false)->first()->data['comment_count']);
+        Sanctum::actingAs($this->user());
+        $this->postJson("/api/v1/tasks/{$task->id}/comments/read", ['through_id' => $last])->assertForbidden();
+    }
+
+    public function test_removed_participant_gets_no_new_notifications(): void
+    {
+        $main = $this->user(); $helper = $this->user(); $task = $this->task($main, [$helper->id]);
+        $task->update(['helping_user_ids' => []]); Sanctum::actingAs($main);
+        $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Equipe actuelle'])->assertCreated();
+        $this->assertSame(0, Notification::count());
+    }
+
+    public function test_unavailable_push_does_not_lose_comment_or_inbox_notification(): void
+    {
+        $this->app->forgetInstance(TaskCommentPush::class);
+        config(['services.webpush.public_key' => 'invalid', 'services.webpush.private_key' => 'invalid', 'services.webpush.subject' => 'mailto:test@example.invalid']);
+        $main = $this->user(); $helper = $this->user(); $task = $this->task($main, [$helper->id]);
+        Sanctum::actingAs($main);
+        $this->postJson("/api/v1/tasks/{$task->id}/comments", ['body' => 'Conserve sans push'])->assertCreated();
+        $this->assertSame(1, TaskComment::count());
+        $this->assertSame(1, Notification::count());
+        $this->assertFalse(Notification::first()->is_sent);
     }
 
     private function user(array $codes = ['tasks_read']): User

@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\TaskComment;
 use App\Services\Media\MediaUrl;
 use App\Services\Tasks\TaskCommentAccess;
+use App\Services\Tasks\TaskCommentNotifications;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -40,9 +41,23 @@ class TaskCommentController extends Controller
             ]);
             $body = trim($data['body']);
             if ($body === '') throw ValidationException::withMessages(['body' => 'Saisissez un commentaire.']);
-            return TaskComment::create(['task_id' => $current->id, 'user_id' => $request->user()->id, 'body' => $body]);
+            $comment = TaskComment::create(['task_id' => $current->id, 'user_id' => $request->user()->id, 'body' => $body]);
+            app(TaskCommentNotifications::class)->record($current, $comment, $request->user());
+            return $comment;
         });
         return response()->json(['message' => 'Commentaire ajoute.', 'comment' => $this->present($comment->load('author.image'))], 201);
+    }
+
+    public function markRead(Request $request, Task $task, TaskCommentAccess $access, TaskCommentNotifications $notifications)
+    {
+        $data = $request->validate(['through_id' => 'required|integer|min:1']);
+        DB::transaction(function () use ($request, $task, $access, $notifications, $data) {
+            $current = Task::whereKey($task->id)->lockForUpdate()->firstOrFail();
+            abort_unless($access->canView($request->user(), $current), 403);
+            abort_unless(TaskComment::where('task_id', $current->id)->whereKey($data['through_id'])->exists(), 422);
+            $notifications->markRead($request->user(), $current, $data['through_id']);
+        });
+        return response()->json(['success' => true]);
     }
 
     private function present(TaskComment $comment): array
